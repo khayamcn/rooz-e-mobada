@@ -22,17 +22,7 @@ import type {
   Person,
   Theme,
 } from "./types";
-
-// ════════════════════════════════════════════════════════════════
-// VALID ACTIVATION TOKENS
-// ════════════════════════════════════════════════════════════════
-export const VALID_TOKENS: string[] = [
-  "dA55@5-811-1442dilI-25210Km@ndi-25-11-258",
-  "dAwwe5-811-1423ilI-2erweV@ndi-25-11-258",
-  "dG#ff@5-831-1442dilI-252sdvEndi-25-11-258",
-  "d1Fw5-431-1442dilI-25210Km@ndi-25-11-258",
-  "dArwe@5-841-1442dilI-252345433ndi-25-11-258",
-];
+import { validateToken } from "./token-validator";
 
 const APP_VERSION = "3.0.0";
 
@@ -169,12 +159,7 @@ export const useApp = create<AppState>()(
       activated: false,
       hasSeenOnboarding: false,
       activate: (token: string) => {
-        const trimmed = token.trim();
-        if (VALID_TOKENS.includes(trimmed)) {
-          set({ activated: true });
-          return true;
-        }
-        return false;
+        return validateToken(token);
       },
       deactivate: () => set({ activated: false }),
       completeOnboarding: () => set({ hasSeenOnboarding: true }),

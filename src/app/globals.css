@@ -170,6 +170,24 @@
 .brand-bg-soft { background: var(--chip-bg); }
 .brand-ring { box-shadow: 0 0 0 2px var(--brand-500); }
 
+/* Fix dropdown text color — ensure dark text on light background */
+select {
+  color: var(--page-fg);
+  background-color: var(--card-bg);
+}
+select option {
+  color: #1e293b;
+  background-color: #ffffff;
+}
+.dark select option {
+  color: #f1f5f9;
+  background-color: #1e293b;
+}
+.dark select {
+  color: var(--page-fg);
+  background-color: var(--input-bg);
+}
+
 .shadow-glow {
   box-shadow: 0 0 0 1px var(--card-border), 0 8px 32px var(--accent-glow);
 }

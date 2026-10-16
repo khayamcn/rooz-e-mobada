@@ -110,3 +110,8 @@ download/apk/*.aab
 # But keep the README
 !download/apk/README.md
 !download/apk/README-v1.5.0.md
+
+# Token files — NEVER commit (private producer keys)
+TOKENS.txt
+*.token
+download/apk/TOKENS.txt

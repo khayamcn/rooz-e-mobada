@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { ShieldCheck, KeyRound, ClipboardPaste, Loader2, Lock } from "lucide-react";
 import { useApp } from "@/lib/store";
+import { validateToken } from "@/lib/token-validator";
 import { cn } from "@/lib/utils";
 
 export function TokenActivation() {
@@ -55,8 +56,10 @@ export function TokenActivation() {
     setLoading(true);
     setError(null);
     setTimeout(() => {
-      const ok = activate(token);
-      if (!ok) {
+      const ok = validateToken(token);
+      if (ok) {
+        useApp.setState({ activated: true });
+      } else {
         setError("توکن نامعتبر است. لطفاً توکن صحیح را از تولیدکننده دریافت کنید.");
       }
       setLoading(false);
