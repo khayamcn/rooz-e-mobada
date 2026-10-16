@@ -1,8 +1,10 @@
 "use client";
 
-import { Search, Phone, AlertTriangle, ShieldCheck, ChevronLeft, Plus, UserPlus } from "lucide-react";
+import { Search, Phone, AlertTriangle, ShieldCheck, ChevronLeft, Plus, UserPlus, Cloud, Database } from "lucide-react";
 import { ScreenHeader } from "@/components/shared/screen-header";
-import { AppCard, SectionTitle, StatusBadge } from "@/components/shared/ui";
+import { AppCard, SectionTitle } from "@/components/shared/ui";
+import { ProfileAvatar } from "@/components/shared/profile-avatar";
+import { AdsBanner } from "@/components/shared/ads-banner";
 import { useApp, useActiveMember, useVisibleDocuments, useVisibleContacts, useVisibleVehicles } from "@/lib/store";
 import { toPersian } from "@/lib/persian";
 import type { ScreenId } from "@/components/bottom-nav";
@@ -27,9 +29,9 @@ export function HomeScreen({ onNavigate }: HomeScreenProps) {
   const contacts = useVisibleContacts();
   const vehicles = useVisibleVehicles();
   const syncMeta = useApp((s) => s.syncMeta);
+  const quota = useApp((s) => s.quota);
   const [showAllMembers, setShowAllMembers] = useState(false);
 
-  // Listen for FAB-triggered add actions
   useEffect(() => {
     const handler = () => onNavigate("family");
     window.addEventListener("rooz-fab-add", handler);
@@ -44,7 +46,6 @@ export function HomeScreen({ onNavigate }: HomeScreenProps) {
     );
   }
 
-  // Aggregate urgent alerts
   const expiringDocs = documents.filter(
     (d) => d.expiryDays !== null && d.expiryDays >= 0 && d.expiryDays <= 30
   );
@@ -66,7 +67,6 @@ export function HomeScreen({ onNavigate }: HomeScreenProps) {
     })),
   ].sort((a, b) => a.daysLeft - b.daysLeft);
 
-  // Filter contacts by member's privacy
   const memberContacts = contacts.filter((c) => {
     if (c.isSystemEmergency) return true;
     if (!c.isPrivate) return true;
@@ -79,7 +79,6 @@ export function HomeScreen({ onNavigate }: HomeScreenProps) {
       <ScreenHeader
         title={activeMember.fullName}
         subtitle={activeMember.relation}
-        icon={<ShieldCheck className="w-5 h-5 text-white" />}
         statusPill={{
           label: syncMeta.connectionStatus === "online" ? "آنلاین" : "آفلاین",
           tone: syncMeta.connectionStatus === "online" ? "online" : "offline",
@@ -96,21 +95,23 @@ export function HomeScreen({ onNavigate }: HomeScreenProps) {
         }
       />
 
-      {/* Active member hero card */}
+      {/* Active member hero card with profile photo */}
       <div className="px-4 -mt-3 mb-4">
         <div className="rounded-2xl p-4 bg-gradient-to-br from-violet-500/10 via-fuchsia-500/5 to-transparent border border-violet-500/15">
           <div className="flex items-center gap-3 mb-3">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center text-white text-sm font-bold shadow-glow">
-              {activeMember.avatarInitials}
-            </div>
+            <ProfileAvatar
+              name={activeMember.fullName}
+              initials={activeMember.avatarInitials}
+              avatarDataUrl={activeMember.avatarDataUrl}
+              size="lg"
+              ring
+            />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <p className="text-sm font-bold text-strong truncate">
                   {activeMember.fullName}
                 </p>
-                <span
-                  className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${ROLE_LABELS[activeMember.role].tone}`}
-                >
+                <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${ROLE_LABELS[activeMember.role].tone}`}>
                   {ROLE_LABELS[activeMember.role].label}
                 </span>
               </div>
@@ -127,7 +128,7 @@ export function HomeScreen({ onNavigate }: HomeScreenProps) {
         </div>
       </div>
 
-      {/* Family member selector */}
+      {/* Family member selector with profile photos */}
       <section className="px-4 mb-5">
         <SectionTitle
           icon={<UserPlus className="w-4 h-4" />}
@@ -153,22 +154,20 @@ export function HomeScreen({ onNavigate }: HomeScreenProps) {
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: i * 0.04 }}
-                className={`shrink-0 flex flex-col items-center gap-1.5 p-2 rounded-2xl transition-all ${
+                className={`shrink-0 flex flex-col items-center gap-1.5 p-2 rounded-2xl transition-all w-[80px] ${
                   isActive
                     ? "bg-gradient-to-br from-violet-500 to-purple-600 text-white shadow-glow"
                     : "surface-card text-strong hover:shadow-glow"
                 }`}
               >
-                <div
-                  className={`w-12 h-12 rounded-full flex items-center justify-center text-xs font-bold ${
-                    isActive
-                      ? "bg-white/20 ring-2 ring-white/30"
-                      : "bg-violet-500/10 text-violet-500 dark:text-violet-300"
-                  }`}
-                >
-                  {m.avatarInitials}
-                </div>
-                <span className="text-[10px] font-semibold max-w-[64px] truncate">
+                <ProfileAvatar
+                  name={m.fullName}
+                  initials={m.avatarInitials}
+                  avatarDataUrl={m.avatarDataUrl}
+                  size="md"
+                  ring={isActive}
+                />
+                <span className="text-[10px] font-semibold max-w-[68px] truncate text-center">
                   {m.fullName.split(" ")[0]}
                 </span>
                 <span className={`text-[9px] ${isActive ? "text-white/80" : "text-soft"}`}>
@@ -180,7 +179,7 @@ export function HomeScreen({ onNavigate }: HomeScreenProps) {
           <button
             type="button"
             onClick={() => onNavigate("family")}
-            className="shrink-0 flex flex-col items-center justify-center gap-1.5 p-2 rounded-2xl border-2 border-dashed border-violet-500/40 text-violet-500 dark:text-violet-300 hover:bg-violet-500/5 transition-colors w-[88px] h-[88px]"
+            className="shrink-0 flex flex-col items-center justify-center gap-1.5 p-2 rounded-2xl border-2 border-dashed border-violet-500/40 text-violet-500 dark:text-violet-300 hover:bg-violet-500/5 transition-colors w-[80px] h-[112px]"
           >
             <Plus className="w-5 h-5" />
             <span className="text-[10px] font-semibold">افزودن عضو</span>
@@ -284,7 +283,7 @@ export function HomeScreen({ onNavigate }: HomeScreenProps) {
         </div>
       </section>
 
-      {/* Quick shortcuts */}
+      {/* Quick shortcuts — now includes Cloud Drive */}
       <section className="px-4 mb-5">
         <SectionTitle title="میانبرهای سریع" />
         <div className="grid grid-cols-2 gap-2">
@@ -292,7 +291,7 @@ export function HomeScreen({ onNavigate }: HomeScreenProps) {
             { icon: "🚗", title: "خودروها", count: toPersian(vehicles.length), target: "documents" as ScreenId },
             { icon: "📕", title: "راهنماها", count: "آفلاین", target: "contacts" as ScreenId },
             { icon: "📄", title: "اسناد", count: toPersian(documents.length), target: "documents" as ScreenId },
-            { icon: "🔄", title: "همگام‌سازی", count: "در صف", target: "sync" as ScreenId },
+            { icon: "☁️", title: "فضای ابری", count: `${toPersian(Math.floor(quota.usedBytes / (1024 * 1024)))} مگ`, target: "cloud" as ScreenId },
           ].map((s) => (
             <AppCard key={s.title} onClick={() => onNavigate(s.target)} className="!p-3">
               <div className="flex items-center gap-2.5">
@@ -308,6 +307,9 @@ export function HomeScreen({ onNavigate }: HomeScreenProps) {
           ))}
         </div>
       </section>
+
+      {/* Ads banner (Bazaar promotional section) */}
+      <AdsBanner onNavigate={onNavigate} />
 
       <div className="px-4 pb-4">
         <div className="rounded-xl px-3 py-2.5 text-[11px] text-soft flex items-start gap-2 bg-violet-500/5 border border-violet-500/15">

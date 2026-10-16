@@ -1,7 +1,7 @@
 /**
- * Rooz-e Mobada — Domain Types
- * Mirrors the 10-entity schema from the design brief, with
- * local-first fields (sync_status, conflict_data).
+ * Rooz-e Mobada — Domain Types (expanded)
+ * Adds: profile photos, per-member categories, auth, cloud storage,
+ * backup, and versioning.
  */
 
 export type Role = "admin" | "editor" | "viewer";
@@ -13,6 +13,17 @@ export type DocCategory =
   | "medical"
   | "vehicle"
   | "other";
+/**
+ * Per-member category — replaces flat document list with a tabbed
+ * view per member: personal info / ID / education / credentials.
+ */
+export type MemberCategory =
+  | "personal" // اطلاعات فردی
+  | "identity" // مدارک شناسایی
+  | "education" // مدارک تحصیلی
+  | "credentials" // نام‌های کاربری و گذرواژه‌ها
+  | "medical" // اطلاعات پزشکی
+  | "financial"; // اطلاعات مالی و بانکی
 export type GuideCategory =
   | "first_aid"
   | "earthquake"
@@ -34,8 +45,10 @@ export interface FamilyMemberProfile {
   role: Role;
   status: MemberStatus;
   phone: string;
+  nationalId?: string; // کد ملی — فقط در صورت نیاز، محدود و امن
   relation: string;
   avatarInitials: string;
+  avatarDataUrl?: string; // عکس پروفایل — base64 data URL
   isCurrentUser?: boolean;
   lastActiveJalali: string;
 }
@@ -44,6 +57,8 @@ export interface Family {
   id: string;
   title: string;
   inviteCode: string;
+  inviteExpiresAt?: string; // ISO Jalali
+  inviteRevoked?: boolean;
   ownerName: string;
   members: FamilyMemberProfile[];
 }
@@ -75,17 +90,46 @@ export interface DocumentItem {
   id: string;
   title: string;
   category: DocCategory;
+  memberCategory?: MemberCategory; // اگر متعلق به دسته‌بندی فردی باشد
+  ownerId: string; // شناسه عضو صاحب مدرک
   documentNumber: string;
   issueJalali: string;
   expiryJalali: string | null;
-  expiryDays: number | null; // <0 = expired, 0-30 = expiring soon, >30 = valid
+  expiryDays: number | null;
   physicalLocation: string;
   notes?: string;
   isPrivate: boolean;
   ownerName: string;
   attachmentLabel: string;
   attachmentStatus: FileTransferStatus;
+  imageDataUrl?: string; // تصویر بارگذاری‌شده (base64)
   syncStatus: SyncStatus;
+}
+
+/** یک رکورد از دسته «نام کاربری و گذرواژه» — قابل کپی. */
+export interface CredentialItem {
+  id: string;
+  ownerId: string; // عضو صاحب رکورد
+  serviceName: string; // مثلاً «اینستاگرام»، «بانک ملت»
+  username: string;
+  password: string;
+  url?: string;
+  notes?: string;
+  isPrivate: boolean;
+  updatedAt: string;
+}
+
+/** اطلاعات فردی عضو — نمایش در دسته personal. */
+export interface PersonalInfo {
+  memberId: string;
+  nationalId?: string;
+  birthDateJalali?: string;
+  bloodType?: string;
+  allergies?: string;
+  chronicDiseases?: string;
+  medications?: string;
+  emergencyNote?: string;
+  address?: string;
 }
 
 export interface EmergencyContact {
@@ -97,8 +141,8 @@ export interface EmergencyContact {
   address?: string;
   medicalOrUrgentNote?: string;
   isPrivate: boolean;
-  isSystemEmergency?: boolean; // for 115, 110, 125...
-  iconLabel: string; // emoji or short label
+  isSystemEmergency?: boolean;
+  iconLabel: string;
   priorityOrder: number;
 }
 
@@ -147,4 +191,92 @@ export interface SyncMetadata {
   lastSuccessfulSyncTime: string;
   pendingOperationsCount: number;
   conflictsCount: number;
+}
+
+// ────────────────────────────────────────────────────────────────
+// AUTH / FAMILY REGISTRATION MODULE
+// ────────────────────────────────────────────────────────────────
+
+export interface AuthUser {
+  id: string;
+  mobile: string; // شماره موبایل تأییدشده
+  displayName: string;
+  nationalId?: string;
+  familyId?: string;
+  role?: Role;
+  createdAt: string;
+}
+
+export interface AuthSession {
+  userId: string;
+  token: string; // نشست موقت
+  expiresAt: number;
+}
+
+export type AuthScreen =
+  | "splash"
+  | "signup"
+  | "otp"
+  | "create-family"
+  | "join-family"
+  | "main-app";
+
+export interface PendingOtp {
+  mobile: string;
+  code: string; // در تولید: hash شده و در حافظه موقت
+  expiresAt: number;
+  attempts: number;
+}
+
+// ────────────────────────────────────────────────────────────────
+// CLOUD STORAGE MODULE
+// ────────────────────────────────────────────────────────────────
+
+export interface CloudFolder {
+  id: string;
+  familyId: string;
+  parentId: string | null;
+  name: string;
+  isPrivate: boolean;
+  ownerId: string;
+  createdAt: string;
+}
+
+export interface CloudFile {
+  id: string;
+  familyId: string;
+  folderId: string | null;
+  name: string;
+  mimeType: string;
+  sizeBytes: number;
+  ownerId: string;
+  ownerName: string;
+  dataUrl?: string; // در نسخه دمو: base64
+  isPrivate: boolean;
+  isOfflineAvailable: boolean;
+  deletedAt?: string | null; // در سطل بازیافت
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FileActivityLog {
+  id: string;
+  fileId?: string;
+  folderId?: string;
+  action:
+    | "upload"
+    | "rename"
+    | "move"
+    | "delete"
+    | "restore"
+    | "download"
+    | "permission_change";
+  actorName: string;
+  details: string;
+  timestamp: string;
+}
+
+export interface StorageQuota {
+  totalBytes: number; // سهمیه کل خانواده (مثلاً ۱ گیگابایت)
+  usedBytes: number;
 }

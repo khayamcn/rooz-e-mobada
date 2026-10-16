@@ -10,6 +10,12 @@ interface AppCardProps {
   padded?: boolean;
   /** Highlight this card as active/selected */
   active?: boolean;
+  /**
+   * When true, AppCard renders as a <div> instead of a <button>, even if
+   * onClick is provided. Useful when children contain nested buttons
+   * (HTML forbids <button> inside <button>).
+   */
+  asDiv?: boolean;
 }
 
 export function AppCard({
@@ -18,12 +24,29 @@ export function AppCard({
   onClick,
   padded = true,
   active = false,
+  asDiv = false,
 }: AppCardProps) {
-  const Comp = onClick ? "button" : "div";
+  // Render as <button> only when there's an onClick AND asDiv is false.
+  // Otherwise render as <div> with the click handler attached (avoids
+  // invalid nested-button HTML).
+  const useButton = onClick && !asDiv;
+  const Comp = useButton ? "button" : "div";
   return (
     <Comp
-      type={onClick ? "button" : undefined}
+      type={useButton ? "button" : undefined}
       onClick={onClick}
+      role={onClick && asDiv ? "button" : undefined}
+      tabIndex={onClick && asDiv ? 0 : undefined}
+      onKeyDown={
+        onClick && asDiv
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
       className={cn(
         "block w-full text-right rounded-2xl surface-card overflow-hidden transition-all",
         onClick &&

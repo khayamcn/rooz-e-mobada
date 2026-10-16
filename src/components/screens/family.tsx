@@ -1,50 +1,62 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   Users, Plus, ShieldCheck, Lock, Database, LogOut, ChevronLeft,
-  Fingerprint, Download, Sun, Moon, Trash2, Pencil,
+  Fingerprint, Download, Sun, Moon, Trash2, Pencil, RefreshCw, UserCog,
 } from "lucide-react";
 import { ScreenHeader } from "@/components/shared/screen-header";
 import { AppCard, SectionTitle } from "@/components/shared/ui";
+import { ProfileAvatar } from "@/components/shared/profile-avatar";
 import { Sheet } from "@/components/shared/sheet";
+import { ImageUploader, type UploadedImage } from "@/components/shared/image-uploader";
 import { useApp } from "@/lib/store";
 import { toPersian } from "@/lib/persian";
 import { motion, AnimatePresence } from "framer-motion";
+import type { ScreenId } from "@/components/bottom-nav";
 
 const ROLE_LABELS: Record<string, { label: string; tone: string }> = {
-  admin: { label: "مدیر", tone: "bg-violet-500/15 text-violet-500 dark:text-violet-300" },
+  admin: { label: "سرپرست", tone: "bg-violet-500/15 text-violet-500 dark:text-violet-300" },
   editor: { label: "ویرایشگر", tone: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300" },
   viewer: { label: "مشاهده‌گر", tone: "bg-slate-500/15 text-slate-500 dark:text-slate-400" },
 };
 
 const ROLE_PERMISSIONS: Record<string, string> = {
-  admin: "دسترسی کامل: ویرایش، مدیریت اعضا و پشتیبان‌گیری",
-  editor: "امکان ثبت و ویرایش مدارک و تماس‌های مشترک",
-  viewer: "فقط مشاهده اطلاعات در مواقع ضروری",
+  admin: "مدیریت کامل: اعضا، نقش‌ها، تنظیمات، فایل‌ها و بکاپ‌گیری",
+  editor: "بارگذاری، ویرایش و مدیریت فایل‌ها و مدارک مجاز",
+  viewer: "فقط مشاهده و دانلود موارد مجاز — بدون تغییر یا حذف",
 };
 
 interface MemberFormState {
   fullName: string;
   phone: string;
+  nationalId: string;
   relation: string;
   role: "admin" | "editor" | "viewer";
   avatarInitials: string;
+  avatarDataUrl?: string;
 }
 
 const EMPTY_FORM: MemberFormState = {
   fullName: "",
   phone: "",
+  nationalId: "",
   relation: "",
   role: "viewer",
   avatarInitials: "",
 };
 
-export function FamilyScreen() {
+interface FamilyScreenProps {
+  onNavigate?: (id: ScreenId) => void;
+}
+
+export function FamilyScreen({ onNavigate }: FamilyScreenProps) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<MemberFormState>(EMPTY_FORM);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [roleSheetId, setRoleSheetId] = useState<string | null>(null);
+  const [inviteSheetOpen, setInviteSheetOpen] = useState(false);
 
   const members = useApp((s) => s.members);
   const family = useApp((s) => s.family);
@@ -53,6 +65,9 @@ export function FamilyScreen() {
   const addMember = useApp((s) => s.addMember);
   const updateMember = useApp((s) => s.updateMember);
   const removeMember = useApp((s) => s.removeMember);
+  const revokeMember = useApp((s) => s.revokeMember);
+  const transferOwnership = useApp((s) => s.transferOwnership);
+  const regenerateInviteCode = useApp((s) => s.regenerateInviteCode);
 
   const openAdd = () => {
     setForm(EMPTY_FORM);
@@ -60,21 +75,17 @@ export function FamilyScreen() {
     setSheetOpen(true);
   };
 
-  useEffect(() => {
-    const handler = () => setSheetOpen(true);
-    window.addEventListener("rooz-fab-add", handler);
-    return () => window.removeEventListener("rooz-fab-add", handler);
-  }, []);
-
   const openEdit = (id: string) => {
     const m = members.find((x) => x.id === id);
     if (!m) return;
     setForm({
       fullName: m.fullName,
       phone: m.phone,
+      nationalId: m.nationalId ?? "",
       relation: m.relation,
       role: m.role,
       avatarInitials: m.avatarInitials,
+      avatarDataUrl: m.avatarDataUrl,
     });
     setEditingId(id);
     setSheetOpen(true);
@@ -87,17 +98,21 @@ export function FamilyScreen() {
       updateMember(editingId, {
         fullName: form.fullName.trim(),
         phone: form.phone,
+        nationalId: form.nationalId || undefined,
         relation: form.relation,
         role: form.role,
         avatarInitials: initials,
+        avatarDataUrl: form.avatarDataUrl,
       });
     } else {
       addMember({
         fullName: form.fullName.trim(),
         phone: form.phone,
+        nationalId: form.nationalId || undefined,
         relation: form.relation,
         role: form.role,
         avatarInitials: initials,
+        avatarDataUrl: form.avatarDataUrl,
         status: "active",
         lastActiveJalali: "همین حالا",
       });
@@ -132,20 +147,27 @@ export function FamilyScreen() {
               <p className="text-[11px] text-soft">پرونده خانواده</p>
               <p className="text-base font-bold text-strong">{family.title}</p>
             </div>
-            <div className="text-left">
-              <p className="text-[11px] text-soft">کد دعوت</p>
-              <p className="text-sm font-bold text-violet-500 dark:text-violet-300 fa-num">{family.inviteCode}</p>
-            </div>
+            <button
+              type="button"
+              onClick={() => setInviteSheetOpen(true)}
+              className="text-left bg-violet-500/10 hover:bg-violet-500/20 transition-colors rounded-xl px-3 py-2"
+            >
+              <p className="text-[10px] text-soft">کد دعوت</p>
+              <p className="text-sm font-bold text-violet-500 dark:text-violet-300 fa-num tracking-wider">
+                {family.inviteCode}
+              </p>
+            </button>
           </div>
           <div className="flex -space-x-2 space-x-reverse">
             {members.map((m) => (
-              <div
+              <ProfileAvatar
                 key={m.id}
-                className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-purple-700 border-2 border-white dark:border-slate-900 flex items-center justify-center text-[10px] font-bold text-white"
-                title={m.fullName}
-              >
-                {m.avatarInitials}
-              </div>
+                name={m.fullName}
+                initials={m.avatarInitials}
+                avatarDataUrl={m.avatarDataUrl}
+                size="sm"
+                ring
+              />
             ))}
             <button
               type="button"
@@ -159,7 +181,7 @@ export function FamilyScreen() {
         </div>
       </div>
 
-      {/* Members list */}
+      {/* Members list with profile photos */}
       <section className="px-4 mb-5">
         <SectionTitle
           title="اعضای خانواده"
@@ -169,21 +191,21 @@ export function FamilyScreen() {
           {members.map((m) => {
             const role = ROLE_LABELS[m.role];
             return (
-              <AppCard key={m.id} className="!p-3.5">
+              <AppCard key={m.id} className={`!p-3.5 ${m.status === "revoked" ? "opacity-50" : ""}`}>
                 <div className="flex items-center gap-3">
-                  <div className="relative shrink-0">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center text-white text-sm font-bold shadow-glow">
-                      {m.avatarInitials}
-                    </div>
-                    {m.isCurrentUser && (
-                      <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white dark:border-slate-900" />
-                    )}
-                  </div>
+                  <ProfileAvatar
+                    name={m.fullName}
+                    initials={m.avatarInitials}
+                    avatarDataUrl={m.avatarDataUrl}
+                    size="lg"
+                    ring={m.isCurrentUser}
+                  />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
                       <p className="text-sm font-bold text-strong truncate">{m.fullName}</p>
-                      {m.isCurrentUser && (
-                        <span className="text-[10px] text-soft">(شما)</span>
+                      {m.isCurrentUser && <span className="text-[10px] text-soft">(شما)</span>}
+                      {m.status === "revoked" && (
+                        <span className="text-[10px] text-red-500 dark:text-red-400 font-semibold">(لغو شده)</span>
                       )}
                     </div>
                     <p className="text-[11px] text-soft truncate">
@@ -194,6 +216,14 @@ export function FamilyScreen() {
                   <div className="flex flex-col items-end gap-1 shrink-0">
                     <span className={`px-2 py-1 rounded-lg text-[10px] font-bold ${role.tone}`}>{role.label}</span>
                     <div className="flex gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setRoleSheetId(m.id)}
+                        aria-label="نقش"
+                        className="w-7 h-7 rounded-lg bg-violet-500/10 hover:bg-violet-500/20 text-violet-500 dark:text-violet-300 flex items-center justify-center transition-colors"
+                      >
+                        <UserCog className="w-3 h-3" />
+                      </button>
                       <button
                         type="button"
                         onClick={() => openEdit(m.id)}
@@ -223,18 +253,10 @@ export function FamilyScreen() {
 
       {/* Security settings */}
       <section className="px-4 mb-5">
-        <SectionTitle
-          title="امنیت، پشتیبان‌گیری و حریم خصوصی"
-          icon={<ShieldCheck className="w-4 h-4" />}
-        />
+        <SectionTitle title="امنیت، پشتیبان‌گیری و حریم خصوصی" icon={<ShieldCheck className="w-4 h-4" />} />
         <div className="space-y-2.5">
-          {/* Theme toggle */}
           <AppCard className="!p-3.5">
-            <button
-              type="button"
-              onClick={toggleTheme}
-              className="w-full flex items-center gap-3"
-            >
+            <button type="button" onClick={toggleTheme} className="w-full flex items-center gap-3">
               <span className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500 shrink-0">
                 {theme === "dark" ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
               </span>
@@ -252,19 +274,30 @@ export function FamilyScreen() {
             </button>
           </AppCard>
 
-          <AppCard className="!p-3.5">
-            <button type="button" className="w-full flex items-center gap-3">
+          <AppCard className="!p-3.5" onClick={() => onNavigate?.("settings")}>
+            <div className="flex items-center gap-3">
               <span className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500 shrink-0">
                 <Download className="w-5 h-5" />
               </span>
               <div className="flex-1 min-w-0 text-right">
-                <p className="text-sm font-bold text-strong">پشتیبان رمزگذاری‌شده</p>
-                <p className="text-[11px] text-soft">
-                  آخرین فایل: <span className="fa-num">۱۴۰۵/۰۷/۱۰</span> · آفلاین
-                </p>
+                <p className="text-sm font-bold text-strong">پشتیبان‌گیری و بازیابی</p>
+                <p className="text-[11px] text-soft">خروجی و بازیابی فایل پشتیبان رمزگذاری‌شده</p>
               </div>
               <ChevronLeft className="w-4 h-4 text-soft" />
-            </button>
+            </div>
+          </AppCard>
+
+          <AppCard className="!p-3.5" onClick={() => onNavigate?.("settings")}>
+            <div className="flex items-center gap-3">
+              <span className="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center text-violet-500 shrink-0">
+                <RefreshCw className="w-5 h-5" />
+              </span>
+              <div className="flex-1 min-w-0 text-right">
+                <p className="text-sm font-bold text-strong">بررسی بروزرسانی</p>
+                <p className="text-[11px] text-soft">نسخه فعلی: ۱.۲.۰ · آخرین نسخه: ۱.۲.۰</p>
+              </div>
+              <ChevronLeft className="w-4 h-4 text-soft" />
+            </div>
           </AppCard>
 
           <AppCard className="!p-3.5">
@@ -299,8 +332,8 @@ export function FamilyScreen() {
                 <LogOut className="w-5 h-5" />
               </span>
               <div className="flex-1 min-w-0 text-right">
-                <p className="text-sm font-bold text-red-500 dark:text-red-400">خروج امن</p>
-                <p className="text-[11px] text-soft">پاک‌سازی داده‌های محلی</p>
+                <p className="text-sm font-bold text-red-500 dark:text-red-400">خروج امن از حساب</p>
+                <p className="text-[11px] text-soft">پاک‌سازی داده‌های محلی و لغو نشست</p>
               </div>
               <ChevronLeft className="w-4 h-4 text-red-500" />
             </button>
@@ -311,16 +344,16 @@ export function FamilyScreen() {
       <div className="px-4 pb-4">
         <div className="rounded-xl px-3 py-2.5 text-[11px] text-soft flex items-start gap-2 bg-violet-500/5 border border-violet-500/15">
           <Lock className="w-4 h-4 text-violet-500 dark:text-violet-300 mt-0.5 shrink-0" />
-          <span>اطلاعات شخصی فقط برای شما و مدیر خانواده قابل مشاهده است. فایل‌های پشتیبان با AES-256 رمزگذاری می‌شوند.</span>
+          <span>اطلاعات شخصی فقط برای شما و سرپرست خانواده قابل مشاهده است. فایل‌های پشتیبان با AES-256 رمزگذاری می‌شوند.</span>
         </div>
       </div>
 
-      {/* Add/Edit member sheet */}
+      {/* Add/Edit member sheet with profile photo upload */}
       <Sheet
         open={sheetOpen}
         onClose={() => setSheetOpen(false)}
         title={editingId ? "ویرایش عضو" : "افزودن عضو جدید"}
-        subtitle="عضو جدید به پرونده خانواده اضافه می‌شود"
+        subtitle="عکس پروفایل و اطلاعات عضو را وارد کنید"
         footer={
           <>
             <button
@@ -342,6 +375,36 @@ export function FamilyScreen() {
         }
       >
         <div className="space-y-4">
+          {/* Profile photo uploader */}
+          <div className="flex justify-center">
+            <div className="relative">
+              <ProfileAvatar
+                name={form.fullName || "عضو جدید"}
+                initials={form.avatarInitials}
+                avatarDataUrl={form.avatarDataUrl}
+                size="xl"
+                ring
+              />
+              {form.avatarDataUrl && (
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, avatarDataUrl: undefined })}
+                  className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center shadow-lg"
+                  aria-label="حذف عکس"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          <ImageUploader
+            value={form.avatarDataUrl ? { name: "profile", size: 0, type: "image/jpeg", dataUrl: form.avatarDataUrl } : null}
+            onChange={(img: UploadedImage | null) => setForm({ ...form, avatarDataUrl: img?.dataUrl })}
+            label="عکس پروفایل"
+            hint="PNG یا JPG"
+          />
+
           <div>
             <label className="block text-xs font-semibold text-soft mb-1.5">نام کامل</label>
             <input
@@ -395,18 +458,106 @@ export function FamilyScreen() {
             </div>
             <p className="text-[11px] text-soft mt-2">{ROLE_PERMISSIONS[form.role]}</p>
           </div>
+        </div>
+      </Sheet>
 
-          <div>
-            <label className="block text-xs font-semibold text-soft mb-1.5">حروف اختصاری (اختیاری)</label>
-            <input
-              type="text"
-              maxLength={3}
-              value={form.avatarInitials}
-              onChange={(e) => setForm({ ...form, avatarInitials: e.target.value })}
-              placeholder="مثلاً: م ا"
-              className="w-full surface-input rounded-xl px-3 py-2.5 text-sm text-strong placeholder:text-soft focus:outline-none focus:ring-2 focus:ring-violet-500/40"
-            />
-          </div>
+      {/* Role management sheet */}
+      <Sheet
+        open={!!roleSheetId}
+        onClose={() => setRoleSheetId(null)}
+        title="مدیریت نقش عضو"
+        subtitle={members.find((m) => m.id === roleSheetId)?.fullName}
+        footer={
+          <button
+            type="button"
+            onClick={() => setRoleSheetId(null)}
+            className="flex-1 py-2.5 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 text-white text-sm font-bold shadow-glow"
+          >
+            بستن
+          </button>
+        }
+      >
+        <div className="space-y-2">
+          {(["admin", "editor", "viewer"] as const).map((r) => (
+            <button
+              key={r}
+              type="button"
+              onClick={() => {
+                if (roleSheetId) updateMember(roleSheetId, { role: r });
+                setRoleSheetId(null);
+              }}
+              className="w-full p-3 rounded-xl surface-card text-right hover:shadow-glow transition-all"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-bold text-strong">{ROLE_LABELS[r].label}</span>
+                <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${ROLE_LABELS[r].tone}`}>
+                  {ROLE_LABELS[r].label}
+                </span>
+              </div>
+              <p className="text-[11px] text-soft mt-1">{ROLE_PERMISSIONS[r]}</p>
+            </button>
+          ))}
+          <div className="h-px bg-slate-200 dark:bg-slate-700 my-2" />
+          <button
+            type="button"
+            onClick={() => {
+              if (roleSheetId) {
+                transferOwnership(roleSheetId);
+                setRoleSheetId(null);
+              }
+            }}
+            className="w-full p-3 rounded-xl bg-violet-500/10 text-violet-500 dark:text-violet-300 text-right hover:bg-violet-500/20 transition-colors"
+          >
+            <p className="text-sm font-bold">انتقال سرپرستی</p>
+            <p className="text-[11px] text-soft mt-0.5">این عضو سرپرست جدید خانواده می‌شود</p>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (roleSheetId) {
+                revokeMember(roleSheetId);
+                setRoleSheetId(null);
+              }
+            }}
+            className="w-full p-3 rounded-xl bg-red-500/10 text-red-500 text-right hover:bg-red-500/20 transition-colors"
+          >
+            <p className="text-sm font-bold">لغو دسترسی</p>
+            <p className="text-[11px] text-soft mt-0.5">کاربر دیگر نمی‌تواند وارد شود</p>
+          </button>
+        </div>
+      </Sheet>
+
+      {/* Invite code sheet */}
+      <Sheet
+        open={inviteSheetOpen}
+        onClose={() => setInviteSheetOpen(false)}
+        title="کد دعوت خانواده"
+        subtitle="این کد را با اعضای خانواده به اشتراک بگذارید"
+        footer={
+          <button
+            type="button"
+            onClick={() => setInviteSheetOpen(false)}
+            className="flex-1 py-2.5 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 text-white text-sm font-bold shadow-glow"
+          >
+            بستن
+          </button>
+        }
+      >
+        <div className="text-center py-4">
+          <p className="text-3xl font-bold tracking-[0.3em] text-violet-500 dark:text-violet-300 fa-num mb-3">
+            {family.inviteCode}
+          </p>
+          <p className="text-[11px] text-soft mb-6">
+            این کد ۷ روز معتبر است. اعضای جدید با وارد کردن این کد و تأیید OTP می‌توانند به خانواده بپیوندند.
+          </p>
+          <button
+            type="button"
+            onClick={() => regenerateInviteCode()}
+            className="w-full py-2.5 rounded-xl bg-violet-500/10 text-violet-500 dark:text-violet-300 text-sm font-bold hover:bg-violet-500/20 transition-colors flex items-center justify-center gap-2"
+          >
+            <RefreshCw className="w-4 h-4" />
+            تولید کد جدید (ابطال کد قبلی)
+          </button>
         </div>
       </Sheet>
 
@@ -418,7 +569,7 @@ export function FamilyScreen() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setDeleteConfirmId(null)}
-            className="absolute inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-6"
+            className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-6"
           >
             <motion.div
               initial={{ scale: 0.9, y: 20 }}
