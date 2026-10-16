@@ -1,16 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo } from "react";
 import { useApp } from "@/lib/store";
 import { ProfileAvatar } from "@/components/shared/profile-avatar";
 import { CopyChip } from "@/components/shared/copyable-field";
 import { AppCard } from "@/components/shared/ui";
-import { toPersian, persianPhone } from "@/lib/persian";
 import {
   ChevronRight, CreditCard, FileText, Receipt, KeyRound,
-  Phone, MapPin, Calendar, Droplet, Pencil, Plus,
+  Phone, Calendar, Droplet, Pencil, Plus,
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
 import type { Person } from "@/lib/types";
 
 interface PersonProfileProps {
@@ -20,14 +18,28 @@ interface PersonProfileProps {
 }
 
 export function PersonProfile({ person, onBack, onEdit }: PersonProfileProps) {
-  const bankCards = useApp((s) => s.bankCards.filter((c) => c.personId === person.id));
-  const documents = useApp((s) => s.documents.filter((d) => d.personId === person.id));
-  const bills = useApp((s) => s.bills.filter((b) => b.personId === person.id));
-  const credentials = useApp((s) => s.credentials.filter((c) => c.personId === person.id));
-  const contacts = useApp((s) => s.contacts);
+  // Use raw arrays and filter with useMemo to avoid infinite re-renders
+  const allBankCards = useApp((s) => s.bankCards);
+  const allDocuments = useApp((s) => s.documents);
+  const allBills = useApp((s) => s.bills);
+  const allCredentials = useApp((s) => s.credentials);
 
-  // Find emergency contacts associated with this person (by phone match)
-  const personContacts = contacts.filter((c) => !c.isSystemEmergency);
+  const bankCards = useMemo(
+    () => allBankCards.filter((c) => c.personId === person.id),
+    [allBankCards, person.id]
+  );
+  const documents = useMemo(
+    () => allDocuments.filter((d) => d.personId === person.id),
+    [allDocuments, person.id]
+  );
+  const bills = useMemo(
+    () => allBills.filter((b) => b.personId === person.id),
+    [allBills, person.id]
+  );
+  const credentials = useMemo(
+    () => allCredentials.filter((c) => c.personId === person.id),
+    [allCredentials, person.id]
+  );
 
   return (
     <div className="flex flex-col bg-page min-h-full">
@@ -65,8 +77,8 @@ export function PersonProfile({ person, onBack, onEdit }: PersonProfileProps) {
             <p className="text-sm text-white/70">{person.relation}</p>
             {person.phone && (
               <div className="flex items-center gap-1.5 mt-1">
-                <span className="text-[11px] text-white/60 fa-num" dir="ltr">
-                  {persianPhone(person.phone)}
+                <span className="text-[11px] text-white/60" dir="ltr">
+                  {person.phone}
                 </span>
                 <CopyChip value={person.phone} label="شماره موبایل" size="sm" />
               </div>
@@ -90,10 +102,18 @@ export function PersonProfile({ person, onBack, onEdit }: PersonProfileProps) {
         <p className="text-xs font-bold text-soft mb-2.5 px-1">اطلاعات فردی</p>
         <AppCard className="!p-4">
           <div className="grid grid-cols-2 gap-3">
-            <InfoField icon={Calendar} label="تاریخ تولد" value={person.birthDateJalali} faNum />
-            <InfoField icon={Droplet} label="گروه خونی" value={person.bloodType} />
-            <InfoField icon={FileText} label="کد ملی" value={person.nationalId} faNum dir="ltr" copyable />
-            <InfoField icon={Phone} label="موبایل" value={person.phone} faNum dir="ltr" copyable />
+            {person.birthDateJalali && (
+              <InfoField icon={Calendar} label="تاریخ تولد" value={person.birthDateJalali} />
+            )}
+            {person.bloodType && (
+              <InfoField icon={Droplet} label="گروه خونی" value={person.bloodType} />
+            )}
+            {person.nationalId && (
+              <InfoField icon={FileText} label="کد ملی" value={person.nationalId} dir="ltr" copyable />
+            )}
+            {person.phone && (
+              <InfoField icon={Phone} label="موبایل" value={person.phone} dir="ltr" copyable />
+            )}
           </div>
           {person.notes && (
             <div className="mt-3 pt-3 border-t border-slate-200/50 dark:border-white/5">
@@ -109,7 +129,7 @@ export function PersonProfile({ person, onBack, onEdit }: PersonProfileProps) {
         <p className="text-xs font-bold text-soft mb-2.5 px-1 flex items-center gap-1.5">
           <CreditCard className="w-3.5 h-3.5" />
           کارت‌های بانکی
-          <span className="mr-auto text-[10px] fa-num">{toPersian(bankCards.length)}</span>
+          <span className="mr-auto text-[10px]">{bankCards.length}</span>
         </p>
         {bankCards.length === 0 ? (
           <EmptyCard label="کارت بانکی" />
@@ -118,7 +138,7 @@ export function PersonProfile({ person, onBack, onEdit }: PersonProfileProps) {
             {bankCards.map((card) => (
               <AppCard key={card.id} className="!p-3">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center text-white text-xs font-bold">
+                  <span className="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
                     {card.bankName.slice(0, 2)}
                   </span>
                   <div className="flex-1 min-w-0">
@@ -127,30 +147,30 @@ export function PersonProfile({ person, onBack, onEdit }: PersonProfileProps) {
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5 mb-1">
-                  <span className="text-sm text-strong font-mono fa-num tracking-wider" dir="ltr">
-                    {card.cardNumber.replace(/(.{4})/g, "$1 ")}
+                  <span className="text-sm text-strong font-mono tracking-wider" dir="ltr">
+                    {card.cardNumber.replace(/(.{4})/g, "$1 ").trim()}
                   </span>
                   <CopyChip value={card.cardNumber} label="شماره کارت" size="sm" />
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-[11px]">
                   <div className="flex items-center gap-1">
                     <span className="text-soft">شبا:</span>
-                    <span className="text-strong font-mono fa-num truncate" dir="ltr">{card.shiba}</span>
+                    <span className="text-strong font-mono truncate" dir="ltr">{card.shiba}</span>
                     <CopyChip value={card.shiba} label="شبا" size="sm" />
                   </div>
                   <div className="flex items-center gap-1">
                     <span className="text-soft">CVV2:</span>
-                    <span className="text-strong font-mono fa-num" dir="ltr">{card.cvv2}</span>
+                    <span className="text-strong font-mono" dir="ltr">{card.cvv2}</span>
                     <CopyChip value={card.cvv2} label="CVV2" size="sm" />
                   </div>
                   <div className="flex items-center gap-1">
                     <span className="text-soft">حساب:</span>
-                    <span className="text-strong font-mono fa-num truncate" dir="ltr">{card.accountNumber}</span>
-                    <CopyChip value={card.accountNumber} label="شماره حساب" size="sm" />
+                    <span className="text-strong font-mono truncate" dir="ltr">{card.accountNumber}</span>
+                    <CopyChip value={card.accountNumber} label="حساب" size="sm" />
                   </div>
                   <div className="flex items-center gap-1">
                     <span className="text-soft">انقضا:</span>
-                    <span className="text-strong font-mono fa-num" dir="ltr">{card.expiryMonth}/{card.expiryYear}</span>
+                    <span className="text-strong font-mono" dir="ltr">{card.expiryMonth}/{card.expiryYear}</span>
                   </div>
                 </div>
               </AppCard>
@@ -164,7 +184,7 @@ export function PersonProfile({ person, onBack, onEdit }: PersonProfileProps) {
         <p className="text-xs font-bold text-soft mb-2.5 px-1 flex items-center gap-1.5">
           <FileText className="w-3.5 h-3.5" />
           مدارک
-          <span className="mr-auto text-[10px] fa-num">{toPersian(documents.length)}</span>
+          <span className="mr-auto text-[10px]">{documents.length}</span>
         </p>
         {documents.length === 0 ? (
           <EmptyCard label="مدرک" />
@@ -176,23 +196,21 @@ export function PersonProfile({ person, onBack, onEdit }: PersonProfileProps) {
                   {doc.imageUrls[0] ? (
                     <img src={doc.imageUrls[0]} alt={doc.title} className="w-10 h-10 rounded-lg object-cover shrink-0" />
                   ) : (
-                    <span className="w-10 h-10 rounded-lg brand-bg-soft flex items-center justify-center text-lg shrink-0">📄</span>
+                    <span className="w-10 h-10 rounded-lg bg-violet-500/10 flex items-center justify-center text-lg shrink-0">📄</span>
                   )}
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-bold text-strong truncate">{doc.title}</p>
                     {doc.documentType && <p className="text-[10px] text-soft">{doc.documentType}</p>}
                     <div className="flex items-center gap-1.5 mt-1">
-                      {doc.documentNumber && (
+                      {doc.documentNumber && doc.documentNumber !== "—" && (
                         <>
                           <span className="text-[10px] text-soft">شماره:</span>
-                          <span className="text-[10px] text-strong font-mono fa-num" dir="ltr">{doc.documentNumber}</span>
+                          <span className="text-[10px] text-strong font-mono" dir="ltr">{doc.documentNumber}</span>
                           <CopyChip value={doc.documentNumber} label="شماره سند" size="sm" />
                         </>
                       )}
                       {doc.imageUrls.length > 1 && (
-                        <span className="mr-auto text-[9px] text-soft fa-num">
-                          {toPersian(doc.imageUrls.length)} تصویر
-                        </span>
+                        <span className="mr-auto text-[9px] text-soft">{doc.imageUrls.length} تصویر</span>
                       )}
                     </div>
                   </div>
@@ -209,7 +227,7 @@ export function PersonProfile({ person, onBack, onEdit }: PersonProfileProps) {
           <p className="text-xs font-bold text-soft mb-2.5 px-1 flex items-center gap-1.5">
             <KeyRound className="w-3.5 h-3.5" />
             رمزهای عبور
-            <span className="mr-auto text-[10px] fa-num">{toPersian(credentials.length)}</span>
+            <span className="mr-auto text-[10px]">{credentials.length}</span>
           </p>
           <div className="space-y-2">
             {credentials.map((cr) => (
@@ -244,7 +262,7 @@ export function PersonProfile({ person, onBack, onEdit }: PersonProfileProps) {
           <p className="text-xs font-bold text-soft mb-2.5 px-1 flex items-center gap-1.5">
             <Receipt className="w-3.5 h-3.5" />
             قبوض
-            <span className="mr-auto text-[10px] fa-num">{toPersian(bills.length)}</span>
+            <span className="mr-auto text-[10px]">{bills.length}</span>
           </p>
           <div className="space-y-2">
             {bills.map((bill) => (
@@ -255,18 +273,12 @@ export function PersonProfile({ person, onBack, onEdit }: PersonProfileProps) {
                   </span>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-bold text-strong truncate">{bill.provider}</p>
-                    <p className="text-[10px] text-soft fa-num">شناسه قبض: {bill.billId}</p>
+                    <p className="text-[10px] text-soft">شناسه قبض: {bill.billId}</p>
                   </div>
                   <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${bill.isPaid ? "bg-emerald-500/15 text-emerald-500" : "bg-amber-500/15 text-amber-500"}`}>
                     {bill.isPaid ? "پرداخت‌شده" : "پرداخت‌نشده"}
                   </span>
                 </div>
-                {bill.amount && (
-                  <div className="flex items-center gap-1 mt-1">
-                    <span className="text-[10px] text-soft">مبلغ:</span>
-                    <span className="text-[11px] text-strong font-bold fa-num">{toPersian(Number(bill.amount).toLocaleString("en-US"))} ریال</span>
-                  </div>
-                )}
               </AppCard>
             ))}
           </div>
@@ -282,14 +294,14 @@ function StatCard({ icon: Icon, value, label, color }: { icon: typeof CreditCard
       <div className={`w-7 h-7 mx-auto rounded-lg bg-gradient-to-br ${color} flex items-center justify-center text-white mb-1`}>
         <Icon className="w-3.5 h-3.5" />
       </div>
-      <p className="text-sm font-bold text-strong fa-num">{toPersian(value)}</p>
+      <p className="text-sm font-bold text-strong">{value}</p>
       <p className="text-[9px] text-soft">{label}</p>
     </div>
   );
 }
 
-function InfoField({ icon: Icon, label, value, faNum, dir, copyable }: {
-  icon: typeof Calendar; label: string; value?: string; faNum?: boolean; dir?: "rtl" | "ltr"; copyable?: boolean;
+function InfoField({ icon: Icon, label, value, dir, copyable }: {
+  icon: typeof Calendar; label: string; value?: string; dir?: "rtl" | "ltr"; copyable?: boolean;
 }) {
   if (!value) return null;
   return (
@@ -299,7 +311,7 @@ function InfoField({ icon: Icon, label, value, faNum, dir, copyable }: {
         {label}
       </div>
       <div className="flex items-center gap-1">
-        <span className={`text-xs text-strong font-medium flex-1 truncate ${faNum ? "fa-num" : ""}`} dir={dir}>
+        <span className={`text-xs text-strong font-medium flex-1 truncate`} dir={dir}>
           {value}
         </span>
         {copyable && <CopyChip value={value} label={label} size="sm" />}
