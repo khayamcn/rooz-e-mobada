@@ -137,6 +137,7 @@ export interface ConflictRecord {
     timestampJalali: string;
     fields: { label: string; value: string }[];
   };
+  resolvedAs?: "local" | "server";
 }
 
 export interface SyncMetadata {

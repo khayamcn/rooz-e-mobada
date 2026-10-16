@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Vazirmatn } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
+import { ThemeBootstrap } from "@/components/theme-bootstrap";
 
 const vazirmatn = Vazirmatn({
   subsets: ["arabic", "latin"],
@@ -39,7 +40,10 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0F172A",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#F4F4F8" },
+    { media: "(prefers-color-scheme: dark)", color: "#0B0F1E" },
+  ],
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
@@ -51,11 +55,36 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Inline script prevents theme flash by applying the dark class
+  // before any React code runs. It reads from localStorage (zustand persist key).
+  const themeScript = `
+    (function() {
+      try {
+        var raw = localStorage.getItem('rooz-e-mobada-v1');
+        var theme = 'dark';
+        if (raw) {
+          var parsed = JSON.parse(raw);
+          theme = (parsed && parsed.state && parsed.state.theme) || 'dark';
+        }
+        if (theme === 'dark') {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
+      } catch (e) {
+        document.documentElement.classList.add('dark');
+      }
+    })();
+  `;
   return (
     <html lang="fa" dir="rtl" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body
-        className={`${vazirmatn.variable} font-vazir antialiased bg-slate-100 text-slate-900`}
+        className={`${vazirmatn.variable} font-vazir antialiased`}
       >
+        <ThemeBootstrap />
         {children}
         <Toaster />
       </body>
