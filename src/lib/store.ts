@@ -1,43 +1,30 @@
 /**
- * Rooz-e Mobada — Global app store (Zustand) — v2.0
+ * Rooz-e Mobada — Global app store (Zustand) — v3.0
  *
- * Fully offline, single-user app with token-based activation.
- * No auth, no cloud, no signup. The activator manages people's data.
- *
- * Responsibilities:
- *  - Token activation (5 valid tokens)
- *  - Theme (light/dark)
- *  - People management (members)
- *  - Per-person documents, credentials, personal info
- *  - Backup/restore with AES-256 encryption
+ * Fully offline personal vault with token activation.
+ * Manages people, bank cards, bills, documents, credentials.
+ * Supports multiple color themes + day/night.
+ * Encrypted backup/restore.
  */
 
 "use client";
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { useMemo } from "react";
 import type {
-  FamilyMemberProfile,
-  CredentialItem,
+  Bill,
+  BankCard,
+  ColorTheme,
+  Credential,
   DocumentItem,
   EmergencyContact,
-  PersonalInfo,
-  Vehicle,
+  EmergencyGuide,
+  Person,
+  Theme,
 } from "./types";
-import {
-  documents as seedDocs,
-  emergencyContacts as seedContacts,
-  emergencyGuides as seedGuides,
-  family as seedFamily,
-  vehicles as seedVehicles,
-} from "./mock-data";
-
-export type Theme = "light" | "dark";
 
 // ════════════════════════════════════════════════════════════════
-// VALID ACTIVATION TOKENS — only the producer knows these.
-// A token activates the app permanently on this device.
+// VALID ACTIVATION TOKENS
 // ════════════════════════════════════════════════════════════════
 export const VALID_TOKENS: string[] = [
   "dA55@5-811-1442dilI-25210Km@ndi-25-11-258",
@@ -47,7 +34,7 @@ export const VALID_TOKENS: string[] = [
   "dArwe@5-841-1442dilI-252345433ndi-25-11-258",
 ];
 
-const APP_VERSION = "2.0.0";
+const APP_VERSION = "3.0.0";
 
 interface AppState {
   // ── App versioning ───────────────────────────────────
@@ -55,60 +42,57 @@ interface AppState {
 
   // ── Token activation ─────────────────────────────────
   activated: boolean;
-  activatedToken: string | null;
   activate: (token: string) => boolean;
   deactivate: () => void;
 
-  // ── Theme ────────────────────────────────────────────
+  // ── Theme + Color ────────────────────────────────────
   theme: Theme;
+  colorTheme: ColorTheme;
   setTheme: (t: Theme) => void;
   toggleTheme: () => void;
+  setColorTheme: (c: ColorTheme) => void;
 
-  // ── Active person ────────────────────────────────────
-  activeMemberId: string;
-  setActiveMember: (id: string) => void;
+  // ── People ────────────────────────────────────────────
+  people: Person[];
+  addPerson: (p: Omit<Person, "id" | "createdAt">) => void;
+  updatePerson: (id: string, patch: Partial<Person>) => void;
+  removePerson: (id: string) => void;
 
-  // ── People (members) ─────────────────────────────────
-  members: FamilyMemberProfile[];
-  addMember: (m: Omit<FamilyMemberProfile, "id">) => void;
-  updateMember: (id: string, patch: Partial<FamilyMemberProfile>) => void;
-  removeMember: (id: string) => void;
+  // ── Active person (for filtering) ────────────────────
+  activePersonId: string | null;
+  setActivePerson: (id: string | null) => void;
 
-  // ── Personal info (per member) ──────────────────────
-  personalInfo: Record<string, PersonalInfo>;
-  updatePersonalInfo: (memberId: string, patch: Partial<PersonalInfo>) => void;
+  // ── Bank Cards ───────────────────────────────────────
+  bankCards: BankCard[];
+  addBankCard: (c: Omit<BankCard, "id" | "createdAt">) => void;
+  updateBankCard: (id: string, patch: Partial<BankCard>) => void;
+  removeBankCard: (id: string) => void;
+
+  // ── Bills ────────────────────────────────────────────
+  bills: Bill[];
+  addBill: (b: Omit<Bill, "id" | "createdAt">) => void;
+  updateBill: (id: string, patch: Partial<Bill>) => void;
+  removeBill: (id: string) => void;
 
   // ── Documents ────────────────────────────────────────
   documents: DocumentItem[];
-  addDocument: (d: Omit<DocumentItem, "id">) => void;
+  addDocument: (d: Omit<DocumentItem, "id" | "createdAt">) => void;
   updateDocument: (id: string, patch: Partial<DocumentItem>) => void;
   removeDocument: (id: string) => void;
 
   // ── Credentials ─────────────────────────────────────
-  credentials: CredentialItem[];
-  addCredential: (c: Omit<CredentialItem, "id">) => void;
-  updateCredential: (id: string, patch: Partial<CredentialItem>) => void;
+  credentials: Credential[];
+  addCredential: (c: Omit<Credential, "id" | "updatedAt">) => void;
+  updateCredential: (id: string, patch: Partial<Credential>) => void;
   removeCredential: (id: string) => void;
 
-  // ── Vehicles ────────────────────────────────────────
-  vehicles: Vehicle[];
-  addVehicle: (v: Omit<Vehicle, "id">) => void;
-  updateVehicle: (id: string, patch: Partial<Vehicle>) => void;
-  removeVehicle: (id: string) => void;
-
-  // ── Contacts ────────────────────────────────────────
+  // ── Emergency contacts (read-only seed) ──────────────
   contacts: EmergencyContact[];
-  addContact: (c: Omit<EmergencyContact, "id">) => void;
-  updateContact: (id: string, patch: Partial<EmergencyContact>) => void;
-  removeContact: (id: string) => void;
+  guides: EmergencyGuide[];
 
-  // ── Guides (read-only) ───────────────────────────────
-  guides: typeof seedGuides;
-  family: typeof seedFamily;
-
-  // ── Backup / restore with AES encryption ────────────
+  // ── Backup / restore with encryption ────────────────
   exportBackup: (passphrase: string) => string;
-  importBackup: (json: string, passphrase: string) => boolean;
+  importBackup: (encrypted: string, passphrase: string) => boolean;
   lastBackupAt: string | null;
 }
 
@@ -116,13 +100,13 @@ function uid(prefix = "id") {
   return `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-// ── Simple AES-256-GCM-ish XOR stream cipher for demo ──
-// In production, use Web Crypto API. This is a simple
-// passphrase-derived XOR cipher that obscures the backup
-// content so casual inspection cannot read it.
+function now() {
+  return new Date().toISOString();
+}
+
+// ── Simple XOR stream cipher for backup encryption ──
 function deriveKey(passphrase: string): Uint8Array {
-  // PBKDF2-like derivation (simplified for offline demo)
-  const salt = "rooz-e-mobada-v2-salt";
+  const salt = "rooz-e-mobada-v3-salt";
   const input = passphrase + salt;
   const key = new Uint8Array(32);
   let h = 0;
@@ -130,7 +114,6 @@ function deriveKey(passphrase: string): Uint8Array {
     h = (h * 31 + input.charCodeAt(i)) | 0;
     key[i % 32] ^= h & 0xff;
   }
-  // Multiple rounds to slow brute force
   for (let round = 0; round < 1000; round++) {
     for (let i = 0; i < 32; i++) {
       key[i] = (key[i] * 31 + round) & 0xff;
@@ -146,16 +129,14 @@ function encryptBackup(json: string, passphrase: string): string {
   for (let i = 0; i < data.length; i++) {
     out[i] = data[i] ^ key[i % key.length];
   }
-  // Base64 encode
   let bin = "";
   for (let i = 0; i < out.length; i++) bin += String.fromCharCode(out[i]);
-  const b64 = btoa(bin);
-  return `ROOZ-ENC-V1:${b64}`;
+  return `ROOZ-V3:${btoa(bin)}`;
 }
 
 function decryptBackup(encrypted: string, passphrase: string): string | null {
-  if (!encrypted.startsWith("ROOZ-ENC-V1:")) return null;
-  const b64 = encrypted.slice("ROOZ-ENC-V1:".length);
+  if (!encrypted.startsWith("ROOZ-V3:")) return null;
+  const b64 = encrypted.slice("ROOZ-V3:".length);
   const key = deriveKey(passphrase);
   let bin: string;
   try {
@@ -184,63 +165,91 @@ export const useApp = create<AppState>()(
 
       // ── Token activation ──────────────────────────────
       activated: false,
-      activatedToken: null,
       activate: (token: string) => {
         const trimmed = token.trim();
         if (VALID_TOKENS.includes(trimmed)) {
-          set({ activated: true, activatedToken: trimmed });
+          set({ activated: true });
           return true;
         }
         return false;
       },
-      deactivate: () => set({ activated: false, activatedToken: null }),
+      deactivate: () => set({ activated: false }),
 
-      // ── Theme ─────────────────────────────────────────
+      // ── Theme + Color ──────────────────────────────────
       theme: "dark",
+      colorTheme: "violet",
       setTheme: (t) => set({ theme: t }),
       toggleTheme: () =>
         set((s) => ({ theme: s.theme === "dark" ? "light" : "dark" })),
-
-      // ── Active member ─────────────────────────────────
-      activeMemberId: seedFamily.members[0].id,
-      setActiveMember: (id) => set({ activeMemberId: id }),
+      setColorTheme: (c) => set({ colorTheme: c }),
 
       // ── People ────────────────────────────────────────
-      members: seedFamily.members,
-      addMember: (m) =>
-        set((s) => ({ members: [...s.members, { ...m, id: uid("u") }] })),
-      updateMember: (id, patch) =>
+      people: [],
+      addPerson: (p) =>
         set((s) => ({
-          members: s.members.map((m) => (m.id === id ? { ...m, ...patch } : m)),
+          people: [
+            ...s.people,
+            {
+              ...p,
+              id: uid("p"),
+              createdAt: now(),
+              avatarColor: p.avatarColor || ["violet", "emerald", "rose", "blue"][Math.floor(Math.random() * 4)],
+            },
+          ],
         })),
-      removeMember: (id) =>
+      updatePerson: (id, patch) =>
+        set((s) => ({
+          people: s.people.map((p) => (p.id === id ? { ...p, ...patch } : p)),
+        })),
+      removePerson: (id) =>
         set((s) => {
-          const remaining = s.members.filter((m) => m.id !== id);
+          const remaining = s.people.filter((p) => p.id !== id);
           const next =
-            s.activeMemberId === id
-              ? remaining[0]?.id ?? ""
-              : s.activeMemberId;
-          return { members: remaining, activeMemberId: next };
+            s.activePersonId === id ? null : s.activePersonId;
+          return { people: remaining, activePersonId: next };
         }),
 
-      // ── Personal info ─────────────────────────────────
-      personalInfo: {},
-      updatePersonalInfo: (memberId, patch) =>
+      // ── Active person ──────────────────────────────────
+      activePersonId: null,
+      setActivePerson: (id) => set({ activePersonId: id }),
+
+      // ── Bank Cards ────────────────────────────────────
+      bankCards: [],
+      addBankCard: (c) =>
         set((s) => ({
-          personalInfo: {
-            ...s.personalInfo,
-            [memberId]: {
-              memberId,
-              ...s.personalInfo[memberId],
-              ...patch,
-            },
-          },
+          bankCards: [...s.bankCards, { ...c, id: uid("card"), createdAt: now() }],
         })),
+      updateBankCard: (id, patch) =>
+        set((s) => ({
+          bankCards: s.bankCards.map((c) =>
+            c.id === id ? { ...c, ...patch } : c
+          ),
+        })),
+      removeBankCard: (id) =>
+        set((s) => ({ bankCards: s.bankCards.filter((c) => c.id !== id) })),
+
+      // ── Bills ──────────────────────────────────────────
+      bills: [],
+      addBill: (b) =>
+        set((s) => ({
+          bills: [...s.bills, { ...b, id: uid("bill"), createdAt: now() }],
+        })),
+      updateBill: (id, patch) =>
+        set((s) => ({
+          bills: s.bills.map((b) => (b.id === id ? { ...b, ...patch } : b)),
+        })),
+      removeBill: (id) =>
+        set((s) => ({ bills: s.bills.filter((b) => b.id !== id) })),
 
       // ── Documents ────────────────────────────────────
-      documents: seedDocs,
+      documents: [],
       addDocument: (d) =>
-        set((s) => ({ documents: [{ ...d, id: uid("doc") }, ...s.documents] })),
+        set((s) => ({
+          documents: [
+            { ...d, id: uid("doc"), createdAt: now() },
+            ...s.documents,
+          ],
+        })),
       updateDocument: (id, patch) =>
         set((s) => ({
           documents: s.documents.map((d) =>
@@ -248,67 +257,78 @@ export const useApp = create<AppState>()(
           ),
         })),
       removeDocument: (id) =>
-        set((s) => ({
-          documents: s.documents.filter((d) => d.id !== id),
-        })),
+        set((s) => ({ documents: s.documents.filter((d) => d.id !== id) })),
 
       // ── Credentials ──────────────────────────────────
       credentials: [],
       addCredential: (c) =>
-        set((s) => ({ credentials: [{ ...c, id: uid("cr") }, ...s.credentials] })),
+        set((s) => ({
+          credentials: [
+            { ...c, id: uid("cr"), updatedAt: now() },
+            ...s.credentials,
+          ],
+        })),
       updateCredential: (id, patch) =>
         set((s) => ({
           credentials: s.credentials.map((c) =>
-            c.id === id ? { ...c, ...patch } : c
+            c.id === id ? { ...c, ...patch, updatedAt: now() } : c
           ),
         })),
       removeCredential: (id) =>
         set((s) => ({ credentials: s.credentials.filter((c) => c.id !== id) })),
 
-      // ── Vehicles ──────────────────────────────────────
-      vehicles: seedVehicles,
-      addVehicle: (v) =>
-        set((s) => ({ vehicles: [{ ...v, id: uid("veh") }, ...s.vehicles] })),
-      updateVehicle: (id, patch) =>
-        set((s) => ({
-          vehicles: s.vehicles.map((v) =>
-            v.id === id ? { ...v, ...patch } : v
-          ),
-        })),
-      removeVehicle: (id) =>
-        set((s) => ({ vehicles: s.vehicles.filter((v) => v.id !== id) })),
+      // ── Emergency contacts (seed) ──────────────────────
+      contacts: [
+        { id: "ec-115", name: "اورژانس", relationOrRole: "مرکز امداد پزشکی", phonePrimary: "115", iconLabel: "🏥", priorityOrder: 1, isSystemEmergency: true },
+        { id: "ec-110", name: "پلیس", relationOrRole: "مرکز برخورد پلیس", phonePrimary: "110", iconLabel: "🚓", priorityOrder: 2, isSystemEmergency: true },
+        { id: "ec-125", name: "آتش‌نشانی", relationOrRole: "مرکز امداد و نجات", phonePrimary: "125", iconLabel: "🚒", priorityOrder: 3, isSystemEmergency: true },
+        { id: "ec-123", name: "گاز", relationOrRole: "مرکز فوری پخش گاز", phonePrimary: "123", iconLabel: "🔥", priorityOrder: 4, isSystemEmergency: true },
+      ],
+      guides: [
+        {
+          id: "g-cpr",
+          title: "احیای قلبی-ریوی (CPR)",
+          category: "first_aid",
+          readingTimeMinutes: 2,
+          summary: "گام‌به‌گام انجام CPR برای بزرگسالان.",
+          steps: [
+            "امنیت محیط را بررسی کنید.",
+            "وضعیت هوشیاری را بررسی کنید.",
+            "اگر پاسخی نبود، با ۱۱۵ تماس بگیرید.",
+            "دست‌ها را روی مرکز قفسه سینه قرار دهید.",
+            "۱۰۰ تا ۱۲۰ فشار در دقیقه با عمق ۵ سانتی‌متر.",
+            "پس از هر ۳۰ فشار، ۲ تنفس مصنوعی بدهید.",
+          ],
+        },
+        {
+          id: "g-earthquake",
+          title: "اقدامات فوری در زلزله",
+          category: "earthquake",
+          readingTimeMinutes: 3,
+          summary: "نقاط امن خانه و مسیر خروج اضطراری.",
+          steps: [
+            "زیر میز محکم پناه بگیرید.",
+            "دور از پنجره و آینه باشید.",
+            "سر و گردن را بپوشانید.",
+            "شیر اصلی گاز را ببندید.",
+            "فیوز برق اصلی را خاموش کنید.",
+            "از آسانسور استفاده نکنید.",
+          ],
+        },
+      ],
 
-      // ── Contacts ──────────────────────────────────────
-      contacts: seedContacts,
-      addContact: (c) =>
-        set((s) => ({ contacts: [...s.contacts, { ...c, id: uid("ec") }] })),
-      updateContact: (id, patch) =>
-        set((s) => ({
-          contacts: s.contacts.map((c) => (c.id === id ? { ...c, ...patch } : c)),
-        })),
-      removeContact: (id) =>
-        set((s) => ({ contacts: s.contacts.filter((c) => c.id !== id) })),
-
-      // ── Guides (read-only) ────────────────────────────
-      guides: seedGuides,
-      family: seedFamily,
-
-      // ── Backup / restore with AES encryption ──────────
+      // ── Backup / restore with encryption ──────────────
       lastBackupAt: null,
       exportBackup: (passphrase: string) => {
         const s = get();
         const data = {
           version: APP_VERSION,
           exportedAt: new Date().toISOString(),
-          members: s.members,
-          personalInfo: s.personalInfo,
-          documents: s.documents.map((d) => ({
-            ...d,
-            imageDataUrl: undefined, // exclude large images
-          })),
+          people: s.people,
+          bankCards: s.bankCards.map((c) => ({ ...c, cardImageDataUrl: undefined })),
+          bills: s.bills.map((b) => ({ ...b, imageDataUrl: undefined })),
+          documents: s.documents.map((d) => ({ ...d, imageUrls: [] })),
           credentials: s.credentials,
-          vehicles: s.vehicles,
-          contacts: s.contacts,
         };
         const json = JSON.stringify(data, null, 2);
         const encrypted = encryptBackup(json, passphrase);
@@ -320,14 +340,13 @@ export const useApp = create<AppState>()(
         if (!json) return false;
         try {
           const data = JSON.parse(json);
-          if (!data.version || !data.members) return false;
+          if (!data.version || !data.people) return false;
           set({
-            members: data.members ?? get().members,
-            personalInfo: data.personalInfo ?? {},
+            people: data.people ?? [],
+            bankCards: data.bankCards ?? [],
+            bills: data.bills ?? [],
             documents: data.documents ?? [],
             credentials: data.credentials ?? [],
-            vehicles: data.vehicles ?? [],
-            contacts: data.contacts ?? [],
           });
           return true;
         } catch {
@@ -336,19 +355,17 @@ export const useApp = create<AppState>()(
       },
     }),
     {
-      name: "rooz-e-mobada-v2-final",
+      name: "rooz-e-mobada-v3",
       partialize: (s) => ({
         activated: s.activated,
-        activatedToken: s.activatedToken,
         theme: s.theme,
-        members: s.members,
-        activeMemberId: s.activeMemberId,
-        personalInfo: s.personalInfo,
+        colorTheme: s.colorTheme,
+        people: s.people,
+        activePersonId: s.activePersonId,
+        bankCards: s.bankCards,
+        bills: s.bills,
         documents: s.documents,
         credentials: s.credentials,
-        vehicles: s.vehicles,
-        contacts: s.contacts,
-        family: s.family,
         lastBackupAt: s.lastBackupAt,
       }),
     }
@@ -356,42 +373,8 @@ export const useApp = create<AppState>()(
 );
 
 // ── Selectors ────────────────────────────────────────────────
-export function useActiveMember(): FamilyMemberProfile | undefined {
-  const members = useApp((s) => s.members);
-  const activeMemberId = useApp((s) => s.activeMemberId);
-  return useMemo(
-    () => members.find((m) => m.id === activeMemberId),
-    [members, activeMemberId]
-  );
-}
-
-export function useDocumentsForActiveMember(): DocumentItem[] {
-  const documents = useApp((s) => s.documents);
-  const activeMemberId = useApp((s) => s.activeMemberId);
-  return useMemo(
-    () => documents.filter((d) => d.ownerId === activeMemberId),
-    [documents, activeMemberId]
-  );
-}
-
-export function useCredentialsForActiveMember(): CredentialItem[] {
-  const credentials = useApp((s) => s.credentials);
-  const activeMemberId = useApp((s) => s.activeMemberId);
-  return useMemo(
-    () => credentials.filter((c) => c.ownerId === activeMemberId),
-    [credentials, activeMemberId]
-  );
-}
-
-// All documents are visible in offline single-user mode (no role filtering)
-export function useVisibleDocuments(): DocumentItem[] {
-  return useApp((s) => s.documents);
-}
-
-export function useVisibleContacts(): EmergencyContact[] {
-  return useApp((s) => s.contacts);
-}
-
-export function useVisibleVehicles(): Vehicle[] {
-  return useApp((s) => s.vehicles);
+export function useActivePerson(): Person | undefined {
+  const people = useApp((s) => s.people);
+  const activePersonId = useApp((s) => s.activePersonId);
+  return people.find((p) => p.id === activePersonId);
 }

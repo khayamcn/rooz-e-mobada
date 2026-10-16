@@ -1,705 +1,546 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, FileText, Car, Trash2, Pencil, Copy, Check, Eye, EyeOff, User, GraduationCap, KeyRound, HeartPulse, Wallet, Info } from "lucide-react";
+import { useApp } from "@/lib/store";
 import { ScreenHeader } from "@/components/shared/screen-header";
-import { AppCard, SectionTitle, StatusBadge, FileAttachmentChip } from "@/components/shared/ui";
+import { AppCard, SectionTitle } from "@/components/shared/ui";
 import { ProfileAvatar } from "@/components/shared/profile-avatar";
-import { Sheet } from "@/components/shared/sheet";
-import { ImageUploader, type UploadedImage } from "@/components/shared/image-uploader";
 import { CopyChip } from "@/components/shared/copyable-field";
-import { useApp, useActiveMember, useDocumentsForActiveMember, useCredentialsForActiveMember, useVisibleVehicles } from "@/lib/store";
+import { MultiImageUploader } from "@/components/shared/multi-image-uploader";
+import { Sheet } from "@/components/shared/sheet";
 import { toPersian } from "@/lib/persian";
-import type { DocCategory, DocumentItem, MemberCategory, CredentialItem } from "@/lib/types";
+import {
+  Plus, Pencil, Trash2, FileText, IdCard, Car, Home, GraduationCap,
+  ShieldCheck, HeartPulse, FileSignature, MoreHorizontal, ChevronLeft,
+} from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import type { DocumentCategory, DocumentItem } from "@/lib/types";
 
-const MEMBER_CATEGORIES: { id: MemberCategory; label: string; icon: typeof Info }[] = [
-  { id: "personal", label: "اطلاعات فردی", icon: Info },
-  { id: "identity", label: "مدارک شناسایی", icon: User },
-  { id: "education", label: "مدارک تحصیلی", icon: GraduationCap },
-  { id: "credentials", label: "نام‌کاربری و گذرواژه", icon: KeyRound },
-  { id: "medical", label: "اطلاعات پزشکی", icon: HeartPulse },
-  { id: "financial", label: "اطلاعات مالی", icon: Wallet },
+const CATEGORIES: { id: DocumentCategory; label: string; icon: typeof FileText; color: string; types: string[] }[] = [
+  { id: "identity", label: "مدارک شناسایی", icon: IdCard, color: "from-violet-500 to-purple-600", types: ["کارت ملی", "شناسنامه", "گذرنامه", "گواهینامه"] },
+  { id: "vehicle", label: "مدارک خودرو", icon: Car, color: "from-blue-500 to-cyan-600", types: ["کارت خودرو", "سند خودرو", "بیمه‌نامه شخص ثالث", "بیمه بدنه"] },
+  { id: "property", label: "مدارک ملکی", icon: Home, color: "from-emerald-500 to-teal-600", types: ["سند مالکیت", "قرارداد اجاره", "وکالت‌نامه"] },
+  { id: "education", label: "مدارک تحصیلی", icon: GraduationCap, color: "from-amber-500 to-orange-600", types: ["گواهینامه تحصیلی", "لوح تقدیر", "مدرک زبان"] },
+  { id: "insurance", label: "بیمه‌نامه‌ها", icon: ShieldCheck, color: "from-rose-500 to-pink-600", types: ["بیمه زندگی", "بیمه درمان", "بیمه آتش‌سوزی"] },
+  { id: "medical", label: "مدارک پزشکی", icon: HeartPulse, color: "from-red-500 to-rose-600", types: ["پرونده پزشکی", "نسخه دارو", "آزمایش"] },
+  { id: "contract", label: "قراردادها", icon: FileSignature, color: "from-indigo-500 to-blue-600", types: ["قرارداد کاری", "قرارداد خدمات"] },
+  { id: "other", label: "سایر", icon: MoreHorizontal, color: "from-slate-500 to-gray-600", types: ["سایر"] },
 ];
 
-const CATEGORY_EMOJI: Record<DocCategory, string> = {
-  identity: "🪪",
-  insurance: "🛡️",
-  property: "🏠",
-  medical: "🩺",
-  vehicle: "🚗",
-  other: "📄",
-};
-
-const DOC_CATEGORY_BY_MEMBER: Record<MemberCategory, DocCategory> = {
-  personal: "other",
-  identity: "identity",
-  education: "other",
-  credentials: "other",
-  medical: "medical",
-  financial: "property",
-};
-
-function expiryTone(days: number | null) {
-  if (days === null) return null;
-  if (days < 0) return "expired" as const;
-  if (days <= 30) return "expiring" as const;
-  return "valid" as const;
-}
-
-interface DocFormState {
-  title: string;
-  category: DocCategory;
-  documentNumber: string;
-  expiryJalali: string;
-  physicalLocation: string;
-  notes: string;
-  isPrivate: boolean;
-  image: UploadedImage | null;
-}
-
-const EMPTY_DOC_FORM: DocFormState = {
-  title: "",
-  category: "identity",
-  documentNumber: "",
-  expiryJalali: "",
-  physicalLocation: "",
-  notes: "",
-  isPrivate: false,
-  image: null,
-};
-
-interface CredentialFormState {
-  serviceName: string;
-  username: string;
-  password: string;
-  url: string;
-  notes: string;
-  isPrivate: boolean;
-}
-
-const EMPTY_CR_FORM: CredentialFormState = {
-  serviceName: "",
-  username: "",
-  password: "",
-  url: "",
-  notes: "",
-  isPrivate: true,
-};
-
 export function DocumentsScreen() {
-  const [activeCategory, setActiveCategory] = useState<MemberCategory>("personal");
-  const [docSheetOpen, setDocSheetOpen] = useState(false);
-  const [crSheetOpen, setCrSheetOpen] = useState(false);
-  const [editingDocId, setEditingDocId] = useState<string | null>(null);
-  const [editingCrId, setEditingCrId] = useState<string | null>(null);
-  const [docForm, setDocForm] = useState<DocFormState>(EMPTY_DOC_FORM);
-  const [crForm, setCrForm] = useState<CredentialFormState>(EMPTY_CR_FORM);
-  const [deleteDocId, setDeleteDocId] = useState<string | null>(null);
-  const [deleteCrId, setDeleteCrId] = useState<string | null>(null);
-
-  const activeMember = useActiveMember();
-  const allDocs = useDocumentsForActiveMember();
-  const credentials = useCredentialsForActiveMember();
-  const vehicles = useVisibleVehicles();
-  const personalInfo = useApp((s) => s.personalInfo);
-  const updatePersonalInfo = useApp((s) => s.updatePersonalInfo);
+  const documents = useApp((s) => s.documents);
+  const people = useApp((s) => s.people);
   const addDocument = useApp((s) => s.addDocument);
   const updateDocument = useApp((s) => s.updateDocument);
   const removeDocument = useApp((s) => s.removeDocument);
-  const addCredential = useApp((s) => s.addCredential);
-  const updateCredential = useApp((s) => s.updateCredential);
-  const removeCredential = useApp((s) => s.removeCredential);
+
+  const [activeCategory, setActiveCategory] = useState<DocumentCategory | "all">("all");
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [viewingDoc, setViewingDoc] = useState<DocumentItem | null>(null);
+  const [viewingImageIndex, setViewingImageIndex] = useState(0);
+  const [form, setForm] = useState({
+    personId: "",
+    title: "",
+    category: "identity" as DocumentCategory,
+    documentType: "",
+    documentNumber: "",
+    issueDateJalali: "",
+    expiryDateJalali: "",
+    physicalLocation: "",
+    notes: "",
+    imageUrls: [] as string[],
+  });
+
+  const openAdd = () => {
+    setForm({
+      personId: people[0]?.id ?? "",
+      title: "",
+      category: activeCategory === "all" ? "identity" : activeCategory,
+      documentType: "",
+      documentNumber: "",
+      issueDateJalali: "",
+      expiryDateJalali: "",
+      physicalLocation: "",
+      notes: "",
+      imageUrls: [],
+    });
+    setEditingId(null);
+    setSheetOpen(true);
+  };
 
   useEffect(() => {
     const handler = () => {
-      if (activeCategory === "credentials") {
-        setCrForm(EMPTY_CR_FORM);
-        setEditingCrId(null);
-        setCrSheetOpen(true);
-      } else {
-        setDocForm(EMPTY_DOC_FORM);
-        setEditingDocId(null);
-        setDocSheetOpen(true);
-      }
+      setForm({
+        personId: people[0]?.id ?? "",
+        title: "",
+        category: activeCategory === "all" ? "identity" : activeCategory,
+        documentType: "",
+        documentNumber: "",
+        issueDateJalali: "",
+        expiryDateJalali: "",
+        physicalLocation: "",
+        notes: "",
+        imageUrls: [],
+      });
+      setEditingId(null);
+      setSheetOpen(true);
     };
     window.addEventListener("rooz-fab-add", handler);
     return () => window.removeEventListener("rooz-fab-add", handler);
-  }, [activeCategory]);
+  }, [people, activeCategory]);
 
-  if (!activeMember) {
-    return <div className="p-6 text-center text-soft text-sm">عضوی انتخاب نشده است.</div>;
-  }
-
-  const memberDocs = allDocs.filter((d) => d.memberCategory === activeCategory || (!d.memberCategory && activeCategory === "identity" && d.category === "identity"));
-  const memberInfo = personalInfo[activeMember.id] ?? { memberId: activeMember.id };
-
-  const openAddDoc = () => {
-    setDocForm(EMPTY_DOC_FORM);
-    setEditingDocId(null);
-    setDocSheetOpen(true);
-  };
-
-  const openEditDoc = (doc: DocumentItem) => {
-    setDocForm({
+  const openEdit = (doc: DocumentItem) => {
+    setForm({
+      personId: doc.personId,
       title: doc.title,
       category: doc.category,
+      documentType: doc.documentType ?? "",
       documentNumber: doc.documentNumber,
-      expiryJalali: doc.expiryJalali ?? "",
-      physicalLocation: doc.physicalLocation,
+      issueDateJalali: doc.issueDateJalali ?? "",
+      expiryDateJalali: doc.expiryDateJalali ?? "",
+      physicalLocation: doc.physicalLocation ?? "",
       notes: doc.notes ?? "",
-      isPrivate: doc.isPrivate,
-      image: null,
+      imageUrls: doc.imageUrls,
     });
-    setEditingDocId(doc.id);
-    setDocSheetOpen(true);
+    setEditingId(doc.id);
+    setSheetOpen(true);
   };
 
-  const handleSaveDoc = () => {
-    if (!docForm.title.trim() || !activeMember) return;
-    if (editingDocId) {
-      updateDocument(editingDocId, {
-        title: docForm.title.trim(),
-        category: docForm.category,
-        documentNumber: docForm.documentNumber || "—",
-        expiryJalali: docForm.expiryJalali || null,
-        expiryDays: docForm.expiryJalali ? 365 : null,
-        physicalLocation: docForm.physicalLocation || "—",
-        notes: docForm.notes,
-        isPrivate: docForm.isPrivate,
-        memberCategory: activeCategory,
-        attachmentStatus: docForm.image ? "cached" : "uploaded",
-        attachmentLabel: docForm.image ? docForm.image.name : "بدون پیوست",
-        imageDataUrl: docForm.image?.dataUrl,
-      });
+  const handleSave = () => {
+    if (!form.title.trim() || !form.personId) return;
+    const data = {
+      personId: form.personId,
+      title: form.title.trim(),
+      category: form.category,
+      documentType: form.documentType || undefined,
+      documentNumber: form.documentNumber || "—",
+      issueDateJalali: form.issueDateJalali || undefined,
+      expiryDateJalali: form.expiryDateJalali || undefined,
+      physicalLocation: form.physicalLocation || undefined,
+      notes: form.notes || undefined,
+      imageUrls: form.imageUrls,
+    };
+    if (editingId) {
+      updateDocument(editingId, data);
     } else {
-      addDocument({
-        title: docForm.title.trim(),
-        category: docForm.category,
-        memberCategory: activeCategory,
-        ownerId: activeMember.id,
-        documentNumber: docForm.documentNumber || "—",
-        issueJalali: "1405/07/23",
-        expiryJalali: docForm.expiryJalali || null,
-        expiryDays: docForm.expiryJalali ? 365 : null,
-        physicalLocation: docForm.physicalLocation || "—",
-        notes: docForm.notes,
-        isPrivate: docForm.isPrivate,
-        ownerName: activeMember.fullName,
-        attachmentLabel: docForm.image ? docForm.image.name : "بدون پیوست",
-        attachmentStatus: docForm.image ? "cached" : "uploaded",
-        imageDataUrl: docForm.image?.dataUrl,
-        syncStatus: "pending",
-      });
+      addDocument(data);
     }
-    setDocSheetOpen(false);
-    setDocForm(EMPTY_DOC_FORM);
-    setEditingDocId(null);
+    setSheetOpen(false);
   };
 
-  const openAddCr = () => {
-    setCrForm(EMPTY_CR_FORM);
-    setEditingCrId(null);
-    setCrSheetOpen(true);
-  };
+  const filteredDocs = activeCategory === "all"
+    ? documents
+    : documents.filter((d) => d.category === activeCategory);
 
-  const openEditCr = (cr: CredentialItem) => {
-    setCrForm({
-      serviceName: cr.serviceName,
-      username: cr.username,
-      password: cr.password,
-      url: cr.url ?? "",
-      notes: cr.notes ?? "",
-      isPrivate: cr.isPrivate,
-    });
-    setEditingCrId(cr.id);
-    setCrSheetOpen(true);
-  };
-
-  const handleSaveCr = () => {
-    if (!crForm.serviceName.trim() || !crForm.username.trim() || !activeMember) return;
-    if (editingCrId) {
-      updateCredential(editingCrId, {
-        serviceName: crForm.serviceName.trim(),
-        username: crForm.username.trim(),
-        password: crForm.password,
-        url: crForm.url || undefined,
-        notes: crForm.notes,
-        isPrivate: crForm.isPrivate,
-        updatedAt: "۱۴۰۵/۰۷/۲۳",
-      });
-    } else {
-      addCredential({
-        ownerId: activeMember.id,
-        serviceName: crForm.serviceName.trim(),
-        username: crForm.username.trim(),
-        password: crForm.password,
-        url: crForm.url || undefined,
-        notes: crForm.notes,
-        isPrivate: crForm.isPrivate,
-        updatedAt: "۱۴۰۵/۰۷/۲۳",
-      });
-    }
-    setCrSheetOpen(false);
-    setCrForm(EMPTY_CR_FORM);
-    setEditingCrId(null);
-  };
+  const getPersonName = (id: string) => people.find((p) => p.id === id)?.fullName ?? "—";
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col bg-page min-h-full">
       <ScreenHeader
-        title="مدارک و اطلاعات"
-        subtitle={`پرونده ${activeMember.fullName}`}
+        title="مدارک"
+        subtitle={`${toPersian(documents.length)} سند`}
         icon={<FileText className="w-5 h-5 text-white" />}
         trailing={
           <button
             type="button"
-            onClick={() => activeCategory === "credentials" ? openAddCr() : openAddDoc()}
-            aria-label="افزودن"
-            className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+            onClick={openAdd}
+            disabled={people.length === 0}
+            className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors disabled:opacity-40"
+            aria-label="افزودن مدرک"
           >
             <Plus className="w-5 h-5 text-white" />
           </button>
         }
       />
 
-      {/* Active member hero */}
-      <div className="px-4 -mt-3 mb-3">
-        <div className="rounded-2xl p-3 surface-card flex items-center gap-3">
-          <ProfileAvatar
-            name={activeMember.fullName}
-            initials={activeMember.avatarInitials}
-            avatarDataUrl={activeMember.avatarDataUrl}
-            size="md"
-            ring
-          />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-strong truncate">{activeMember.fullName}</p>
-            <p className="text-[11px] text-soft truncate">{activeMember.relation} · {activeMember.phone}</p>
-          </div>
+      {people.length === 0 ? (
+        <div className="px-4 mt-8">
+          <AppCard className="!p-6 text-center">
+            <p className="text-sm text-soft">برای افزودن مدرک، ابتدا یک فرد ثبت کنید.</p>
+          </AppCard>
         </div>
-      </div>
-
-      {/* Category tabs */}
-      <div className="px-4 mb-4">
-        <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-1 px-1 pb-1">
-          {MEMBER_CATEGORIES.map((c) => {
-            const Icon = c.icon;
-            const isActive = activeCategory === c.id;
-            const count = c.id === "credentials" ? credentials.length : memberDocs.length;
-            return (
+      ) : (
+        <>
+          {/* Category tabs */}
+          <div className="px-4 -mt-3 mb-4">
+            <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-1 px-1 pb-1">
               <button
-                key={c.id}
                 type="button"
-                onClick={() => setActiveCategory(c.id)}
-                className={`shrink-0 px-3 py-2 rounded-full text-xs font-semibold border transition-all flex items-center gap-1.5 ${
-                  isActive
-                    ? "bg-gradient-to-br from-violet-500 to-purple-600 text-white border-transparent shadow-glow"
-                    : "surface-card text-strong border-transparent hover:shadow-glow"
+                onClick={() => setActiveCategory("all")}
+                className={`shrink-0 px-3.5 py-2 rounded-full text-xs font-semibold border transition-all ${
+                  activeCategory === "all"
+                    ? "brand-gradient text-white border-transparent shadow-glow"
+                    : "surface-card text-strong border-transparent"
                 }`}
               >
-                <Icon className="w-3 h-3" />
-                {c.label}
-                {count > 0 && (
-                  <span className={`px-1.5 py-0.5 rounded-md text-[9px] font-bold fa-num ${isActive ? "bg-white/20" : "bg-violet-500/10 text-violet-500 dark:text-violet-300"}`}>
-                    {toPersian(count)}
-                  </span>
-                )}
+                همه
+                <span className="mr-1 opacity-70 fa-num">{toPersian(documents.length)}</span>
               </button>
-            );
-          })}
-        </div>
-      </div>
+              {CATEGORIES.map((cat) => {
+                const count = documents.filter((d) => d.category === cat.id).length;
+                const Icon = cat.icon;
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setActiveCategory(cat.id)}
+                    className={`shrink-0 px-3 py-2 rounded-full text-xs font-semibold border transition-all flex items-center gap-1.5 ${
+                      activeCategory === cat.id
+                        ? "brand-gradient text-white border-transparent shadow-glow"
+                        : "surface-card text-strong border-transparent"
+                    }`}
+                  >
+                    <Icon className="w-3 h-3" />
+                    {cat.label}
+                    {count > 0 && <span className="opacity-70 fa-num">{toPersian(count)}</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
-      {/* Personal info tab */}
-      {activeCategory === "personal" && (
-        <section className="px-4 mb-5">
-          <SectionTitle title="اطلاعات فردی" icon={<Info className="w-4 h-4" />} />
-          <AppCard className="!p-4">
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <Field label="کد ملی" value={activeMember.nationalId || ""} copyable editable onSave={(v) => updatePersonalInfo(activeMember.id, { nationalId: v })} />
-              <Field label="گروه خونی" value={memberInfo.bloodType || ""} editable onSave={(v) => updatePersonalInfo(activeMember.id, { bloodType: v })} />
-              <Field label="تاریخ تولد (شمسی)" value={memberInfo.birthDateJalali || ""} copyable editable onSave={(v) => updatePersonalInfo(activeMember.id, { birthDateJalali: v })} />
-              <Field label="شماره موبایل" value={activeMember.phone || ""} copyable dir="ltr" />
-              <Field label="آدرس" value={memberInfo.address || ""} editable onSave={(v) => updatePersonalInfo(activeMember.id, { address: v })} />
-            </div>
-          </AppCard>
-          <AppCard className="!p-4 mt-2.5">
-            <p className="text-[11px] font-bold text-violet-500 dark:text-violet-300 mb-2">یادداشت‌های پزشکی</p>
-            <div className="space-y-2">
-              <Field label="حساسیت‌ها" value={memberInfo.allergies || ""} copyable editable onSave={(v) => updatePersonalInfo(activeMember.id, { allergies: v })} />
-              <Field label="بیماری‌های مزمن" value={memberInfo.chronicDiseases || ""} copyable editable onSave={(v) => updatePersonalInfo(activeMember.id, { chronicDiseases: v })} />
-              <Field label="داروهای مصرفی" value={memberInfo.medications || ""} copyable editable onSave={(v) => updatePersonalInfo(activeMember.id, { medications: v })} />
-              <Field label="یادداشت اضطراری" value={memberInfo.emergencyNote || ""} copyable editable onSave={(v) => updatePersonalInfo(activeMember.id, { emergencyNote: v })} />
-            </div>
-          </AppCard>
-        </section>
+          {/* Documents list */}
+          <div className="px-4 mb-4">
+            {filteredDocs.length === 0 ? (
+              <AppCard className="!p-6 text-center" onClick={openAdd}>
+                <Plus className="w-8 h-8 mx-auto mb-2 brand-text" />
+                <p className="text-sm font-bold text-strong">افزودن اولین مدرک</p>
+                <p className="text-[11px] text-soft mt-1">کارت ملی، شناسنامه، سند، بیمه‌نامه...</p>
+              </AppCard>
+            ) : (
+              <div className="space-y-2">
+                {filteredDocs.map((doc, i) => {
+                  const cat = CATEGORIES.find((c) => c.id === doc.category);
+                  const Icon = cat?.icon ?? FileText;
+                  return (
+                    <motion.div
+                      key={doc.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.05 }}
+                    >
+                      <AppCard asDiv onClick={() => {
+                        setViewingDoc(doc);
+                        setViewingImageIndex(0);
+                      }} className="!p-3">
+                        <div className="flex items-start gap-2">
+                          {doc.imageUrls[0] ? (
+                            <img src={doc.imageUrls[0]} alt={doc.title} className="w-12 h-12 rounded-xl object-cover shrink-0" />
+                          ) : (
+                            <span className={`w-12 h-12 rounded-xl bg-gradient-to-br ${cat?.color} flex items-center justify-center text-white shrink-0`}>
+                              <Icon className="w-5 h-5" />
+                            </span>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-bold text-strong truncate">{doc.title}</p>
+                            {doc.documentType && <p className="text-[10px] text-soft">{doc.documentType}</p>}
+                            <p className="text-[10px] text-soft mt-0.5">{getPersonName(doc.personId)}</p>
+                            <div className="flex items-center gap-1.5 mt-1">
+                              {doc.documentNumber && doc.documentNumber !== "—" && (
+                                <>
+                                  <span className="text-[10px] text-soft">شماره:</span>
+                                  <span className="text-[10px] text-strong font-mono fa-num" dir="ltr">{doc.documentNumber}</span>
+                                  <CopyChip value={doc.documentNumber} label="شماره" size="sm" />
+                                </>
+                              )}
+                              {doc.imageUrls.length > 1 && (
+                                <span className="mr-auto text-[9px] text-soft fa-num">
+                                  {toPersian(doc.imageUrls.length)} تصویر
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); openEdit(doc); }}
+                              className="w-7 h-7 rounded-lg brand-bg-soft brand-text flex items-center justify-center"
+                              aria-label="ویرایش"
+                            >
+                              <Pencil className="w-3 h-3" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(doc.id); }}
+                              className="w-7 h-7 rounded-lg bg-red-500/10 text-red-500 flex items-center justify-center"
+                              aria-label="حذف"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+                      </AppCard>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </>
       )}
 
-      {/* Documents tab */}
-      {activeCategory !== "personal" && activeCategory !== "credentials" && (
-        <section className="px-4 mb-5">
-          <SectionTitle
-            title={MEMBER_CATEGORIES.find((c) => c.id === activeCategory)?.label || "مدارک"}
-            action={<span className="text-[11px] text-soft fa-num">{toPersian(memberDocs.length)} مورد</span>}
-          />
-          {memberDocs.length === 0 ? (
-            <AppCard className="!p-6 text-center">
-              <p className="text-3xl mb-2">📄</p>
-              <p className="text-sm text-soft">موردی ثبت نشده است.</p>
-              <button type="button" onClick={openAddDoc} className="mt-3 text-xs font-bold text-violet-500 dark:text-violet-300">
-                افزودن اولین مورد +
-              </button>
-            </AppCard>
-          ) : (
-            <div className="space-y-2.5">
-              {memberDocs.map((d) => (
-                <AppCard key={d.id} className="!p-3.5">
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      {d.imageDataUrl ? (
-                        <img src={d.imageDataUrl} alt={d.title} className="w-10 h-10 rounded-xl object-cover shrink-0" />
-                      ) : (
-                        <span className="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center text-lg shrink-0">
-                          {CATEGORY_EMOJI[d.category]}
-                        </span>
-                      )}
-                      <div className="min-w-0">
-                        <p className="text-sm font-bold text-strong truncate">{d.title}</p>
-                        <p className="text-[11px] text-soft">{d.isPrivate ? "شخصی · " : "مشترک · "}{d.ownerName}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <button type="button" onClick={() => openEditDoc(d)} className="w-7 h-7 rounded-lg bg-violet-500/10 hover:bg-violet-500/20 text-violet-500 dark:text-violet-300 flex items-center justify-center transition-colors">
-                        <Pencil className="w-3 h-3" />
-                      </button>
-                      <button type="button" onClick={() => setDeleteDocId(d.id)} className="w-7 h-7 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-500 flex items-center justify-center transition-colors">
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] mb-2">
-                    <div className="flex items-center gap-1 min-w-0">
-                      <span className="text-soft shrink-0">شماره: </span>
-                      <span className="text-strong font-medium fa-num truncate">{d.documentNumber}</span>
-                      {d.documentNumber && d.documentNumber !== "—" && (
-                        <CopyChip value={d.documentNumber} label="شماره سند" />
-                      )}
-                    </div>
-                    {d.expiryJalali && (
-                      <div>
-                        <span className="text-soft">انقضا: </span>
-                        <span className={`font-bold fa-num ${expiryTone(d.expiryDays) === "valid" ? "text-emerald-500 dark:text-emerald-300" : "text-red-500 dark:text-red-300"}`}>{d.expiryJalali}</span>
-                      </div>
-                    )}
-                  </div>
-                  {d.notes && (
-                    <div className="flex items-center gap-1 mb-2 text-[11px] text-soft">
-                      <span>📝</span>
-                      <span className="truncate flex-1">{d.notes}</span>
-                      <CopyChip value={d.notes} label="یادداشت" />
-                    </div>
-                  )}
-                  {d.physicalLocation && (
-                    <div className="flex items-center gap-1 mb-2 text-[11px] text-soft">
-                      <span>📍</span>
-                      <span className="truncate flex-1">{d.physicalLocation}</span>
-                      <CopyChip value={d.physicalLocation} label="محل نگهداری" />
-                    </div>
-                  )}
-                  {d.imageDataUrl && <FileAttachmentChip status="cached" label="تصویر بارگذاری‌شده" />}
-                </AppCard>
-              ))}
-            </div>
-          )}
-        </section>
-      )}
-
-      {/* Credentials tab */}
-      {activeCategory === "credentials" && (
-        <section className="px-4 mb-5">
-          <SectionTitle
-            title="نام‌های کاربری و گذرواژه‌ها"
-            icon={<KeyRound className="w-4 h-4" />}
-            action={<span className="text-[11px] text-soft fa-num">{toPersian(credentials.length)} مورد</span>}
-          />
-          {credentials.length === 0 ? (
-            <AppCard className="!p-6 text-center">
-              <p className="text-3xl mb-2">🔐</p>
-              <p className="text-sm text-soft">هنوز رمزی ثبت نشده است.</p>
-              <button type="button" onClick={openAddCr} className="mt-3 text-xs font-bold text-violet-500 dark:text-violet-300">
-                افزودن اولین رمز +
-              </button>
-            </AppCard>
-          ) : (
-            <div className="space-y-2.5">
-              {credentials.map((cr) => (
-                <CredentialCard
-                  key={cr.id}
-                  credential={cr}
-                  onEdit={() => openEditCr(cr)}
-                  onDelete={() => setDeleteCrId(cr.id)}
-                />
-              ))}
-            </div>
-          )}
-        </section>
-      )}
-
-      {/* Add document button */}
-      {activeCategory !== "personal" && activeCategory !== "credentials" && (
-        <div className="px-4 pb-4">
-          <button
-            type="button"
-            onClick={openAddDoc}
-            className="w-full py-3 rounded-2xl border-2 border-dashed border-violet-500/40 text-violet-500 dark:text-violet-300 hover:bg-violet-500/5 transition-colors flex items-center justify-center gap-2 text-sm font-bold"
-          >
-            <Plus className="w-4 h-4" />
-            افزودن مدرک
-          </button>
-        </div>
-      )}
-
-      {/* Add/edit document sheet */}
+      {/* Add/Edit sheet */}
       <Sheet
-        open={docSheetOpen}
-        onClose={() => setDocSheetOpen(false)}
-        title={editingDocId ? "ویرایش مدرک" : "افزودن مدرک جدید"}
-        subtitle={`ثبت در دسته: ${MEMBER_CATEGORIES.find((c) => c.id === activeCategory)?.label}`}
+        open={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        title={editingId ? "ویرایش مدرک" : "افزودن مدرک جدید"}
         footer={
           <>
-            <button type="button" onClick={() => setDocSheetOpen(false)} className="flex-1 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-sm font-bold">انصراف</button>
-            <button type="button" onClick={handleSaveDoc} disabled={!docForm.title.trim()} className="flex-1 py-2.5 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 text-white text-sm font-bold shadow-glow disabled:opacity-40 transition-opacity">ذخیره</button>
+            <button
+              type="button"
+              onClick={() => setSheetOpen(false)}
+              className="flex-1 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-sm font-bold"
+            >
+              انصراف
+            </button>
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={!form.title.trim() || !form.personId}
+              className="flex-1 py-2.5 rounded-xl brand-gradient text-white text-sm font-bold shadow-glow disabled:opacity-40"
+            >
+              ذخیره
+            </button>
           </>
         }
       >
         <div className="space-y-4">
-          <Field label="عنوان">
-            <input type="text" value={docForm.title} onChange={(e) => setDocForm({ ...docForm, title: e.target.value })} placeholder="مثلاً: کارت ملی هوشمند" className="w-full surface-input rounded-xl px-3 py-2.5 text-sm text-strong placeholder:text-soft focus:outline-none focus:ring-2 focus:ring-violet-500/40" />
+          <Field label="فرد">
+            <select
+              value={form.personId}
+              onChange={(e) => setForm({ ...form, personId: e.target.value })}
+              className="w-full surface-input rounded-xl px-3 py-2.5 text-sm text-strong focus:outline-none focus:ring-2 focus:ring-violet-500/40"
+            >
+              <option value="">انتخاب فرد...</option>
+              {people.map((p) => (
+                <option key={p.id} value={p.id}>{p.fullName}</option>
+              ))}
+            </select>
           </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="شماره سند">
-              <input type="text" value={docForm.documentNumber} onChange={(e) => setDocForm({ ...docForm, documentNumber: e.target.value })} placeholder="۰۰۱۲۳۴۵۶۷۸" className="w-full surface-input rounded-xl px-3 py-2.5 text-sm text-strong placeholder:text-soft focus:outline-none focus:ring-2 focus:ring-violet-500/40 fa-num" />
+          <Field label="عنوان مدرک">
+            <input
+              type="text"
+              value={form.title}
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
+              placeholder="مثلاً: کارت ملی علی رضایی"
+              className="w-full surface-input rounded-xl px-3 py-2.5 text-sm text-strong placeholder:text-soft focus:outline-none focus:ring-2 focus:ring-violet-500/40"
+            />
+          </Field>
+          <Field label="دسته‌بندی">
+            <div className="grid grid-cols-4 gap-2">
+              {CATEGORIES.map((cat) => {
+                const Icon = cat.icon;
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setForm({ ...form, category: cat.id })}
+                    className={`py-2 rounded-xl text-[10px] font-bold border transition-all flex flex-col items-center gap-1 ${
+                      form.category === cat.id
+                        ? "brand-gradient text-white border-transparent"
+                        : "surface-card text-strong border-transparent"
+                    }`}
+                  >
+                    <Icon className="w-4 h-4" />
+                    {cat.label}
+                  </button>
+                );
+              })}
+            </div>
+          </Field>
+          {form.category && (
+            <Field label="نوع مدرک">
+              <select
+                value={form.documentType}
+                onChange={(e) => setForm({ ...form, documentType: e.target.value })}
+                className="w-full surface-input rounded-xl px-3 py-2.5 text-sm text-strong focus:outline-none focus:ring-2 focus:ring-violet-500/40"
+              >
+                <option value="">انتخاب نوع...</option>
+                {CATEGORIES.find((c) => c.id === form.category)?.types.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
             </Field>
-            <Field label="تاریخ انقضا (شمسی)">
-              <input type="text" value={docForm.expiryJalali} onChange={(e) => setDocForm({ ...docForm, expiryJalali: e.target.value })} placeholder="۱۴۰۶/۰۵/۰۱" className="w-full surface-input rounded-xl px-3 py-2.5 text-sm text-strong placeholder:text-soft focus:outline-none focus:ring-2 focus:ring-violet-500/40 fa-num" />
+          )}
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="شماره مدرک">
+              <input
+                type="text"
+                value={form.documentNumber}
+                onChange={(e) => setForm({ ...form, documentNumber: e.target.value })}
+                placeholder="مثلاً: 0012345678"
+                className="w-full surface-input rounded-xl px-3 py-2.5 text-sm text-strong placeholder:text-soft focus:outline-none focus:ring-2 focus:ring-violet-500/40 fa-num"
+              />
+            </Field>
+            <Field label="تاریخ صدور (شمسی)">
+              <input
+                type="text"
+                value={form.issueDateJalali}
+                onChange={(e) => setForm({ ...form, issueDateJalali: e.target.value })}
+                placeholder="۱۴۰۰/۰۱/۰۱"
+                className="w-full surface-input rounded-xl px-3 py-2.5 text-sm text-strong placeholder:text-soft focus:outline-none focus:ring-2 focus:ring-violet-500/40 fa-num"
+              />
             </Field>
           </div>
-          <Field label="محل نگهداری">
-            <input type="text" value={docForm.physicalLocation} onChange={(e) => setDocForm({ ...docForm, physicalLocation: e.target.value })} placeholder="گاوصندوق..." className="w-full surface-input rounded-xl px-3 py-2.5 text-sm text-strong placeholder:text-soft focus:outline-none focus:ring-2 focus:ring-violet-500/40" />
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="تاریخ انقضا (شمسی)">
+              <input
+                type="text"
+                value={form.expiryDateJalali}
+                onChange={(e) => setForm({ ...form, expiryDateJalali: e.target.value })}
+                placeholder="۱۴۱۰/۰۱/۰۱"
+                className="w-full surface-input rounded-xl px-3 py-2.5 text-sm text-strong placeholder:text-soft focus:outline-none focus:ring-2 focus:ring-violet-500/40 fa-num"
+              />
+            </Field>
+            <Field label="محل نگهداری">
+              <input
+                type="text"
+                value={form.physicalLocation}
+                onChange={(e) => setForm({ ...form, physicalLocation: e.target.value })}
+                placeholder="مثلاً: گاوصندوق"
+                className="w-full surface-input rounded-xl px-3 py-2.5 text-sm text-strong placeholder:text-soft focus:outline-none focus:ring-2 focus:ring-violet-500/40"
+              />
+            </Field>
+          </div>
+          <MultiImageUploader
+            images={form.imageUrls}
+            onChange={(imgs) => setForm({ ...form, imageUrls: imgs })}
+            label="تصاویر مدرک (چندصفحه‌ای)"
+          />
+          <Field label="یادداشت">
+            <textarea
+              value={form.notes}
+              onChange={(e) => setForm({ ...form, notes: e.target.value })}
+              placeholder="توضیحات اضافی..."
+              rows={2}
+              className="w-full surface-input rounded-xl px-3 py-2.5 text-sm text-strong placeholder:text-soft focus:outline-none focus:ring-2 focus:ring-violet-500/40 resize-none"
+            />
           </Field>
-          <ImageUploader value={docForm.image} onChange={(img) => setDocForm({ ...docForm, image: img })} />
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" checked={docForm.isPrivate} onChange={(e) => setDocForm({ ...docForm, isPrivate: e.target.checked })} className="w-4 h-4 rounded accent-violet-500" />
-            <span className="text-xs text-soft">این مدرک خصوصی است</span>
-          </label>
         </div>
       </Sheet>
 
-      {/* Add/edit credential sheet */}
+      {/* Document viewer */}
       <Sheet
-        open={crSheetOpen}
-        onClose={() => setCrSheetOpen(false)}
-        title={editingCrId ? "ویرایش رمز" : "افزودن رمز جدید"}
-        subtitle="نام کاربری و گذرواژه با قابلیت کپی"
-        footer={
-          <>
-            <button type="button" onClick={() => setCrSheetOpen(false)} className="flex-1 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-sm font-bold">انصراف</button>
-            <button type="button" onClick={handleSaveCr} disabled={!crForm.serviceName.trim() || !crForm.username.trim()} className="flex-1 py-2.5 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 text-white text-sm font-bold shadow-glow disabled:opacity-40 transition-opacity">ذخیره</button>
-          </>
-        }
+        open={!!viewingDoc}
+        onClose={() => setViewingDoc(null)}
+        title={viewingDoc?.title ?? ""}
+        subtitle={viewingDoc ? `${getPersonName(viewingDoc.personId)} · ${viewingDoc.documentType ?? ""}` : undefined}
       >
-        <div className="space-y-4">
-          <Field label="نام سرویس">
-            <input type="text" value={crForm.serviceName} onChange={(e) => setCrForm({ ...crForm, serviceName: e.target.value })} placeholder="مثلاً: اینستاگرام" className="w-full surface-input rounded-xl px-3 py-2.5 text-sm text-strong placeholder:text-soft focus:outline-none focus:ring-2 focus:ring-violet-500/40" />
-          </Field>
-          <Field label="نام کاربری">
-            <input type="text" value={crForm.username} onChange={(e) => setCrForm({ ...crForm, username: e.target.value })} placeholder="username" dir="ltr" className="w-full surface-input rounded-xl px-3 py-2.5 text-sm text-strong placeholder:text-soft focus:outline-none focus:ring-2 focus:ring-violet-500/40 text-left" />
-          </Field>
-          <Field label="گذرواژه">
-            <input type="text" value={crForm.password} onChange={(e) => setCrForm({ ...crForm, password: e.target.value })} placeholder="••••••••" dir="ltr" className="w-full surface-input rounded-xl px-3 py-2.5 text-sm text-strong placeholder:text-soft focus:outline-none focus:ring-2 focus:ring-violet-500/40 text-left" />
-          </Field>
-          <Field label="آدرس سایت (اختیاری)">
-            <input type="url" value={crForm.url} onChange={(e) => setCrForm({ ...crForm, url: e.target.value })} placeholder="https://..." dir="ltr" className="w-full surface-input rounded-xl px-3 py-2.5 text-sm text-strong placeholder:text-soft focus:outline-none focus:ring-2 focus:ring-violet-500/40 text-left" />
-          </Field>
-          <Field label="یادداشت (اختیاری)">
-            <textarea value={crForm.notes} onChange={(e) => setCrForm({ ...crForm, notes: e.target.value })} rows={2} placeholder="مثلاً: رمز بازیابی..." className="w-full surface-input rounded-xl px-3 py-2.5 text-sm text-strong placeholder:text-soft focus:outline-none focus:ring-2 focus:ring-violet-500/40 resize-none" />
-          </Field>
-        </div>
+        {viewingDoc && (
+          <div className="space-y-3">
+            {viewingDoc.imageUrls.length > 0 && (
+              <div>
+                <div className="relative rounded-2xl overflow-hidden surface-card">
+                  <img src={viewingDoc.imageUrls[viewingImageIndex]} alt={viewingDoc.title} className="w-full h-64 object-contain" />
+                  {viewingDoc.imageUrls.length > 1 && (
+                    <>
+                      <span className="absolute top-2 right-2 px-2 py-1 rounded-full bg-black/50 text-white text-[10px] font-bold fa-num">
+                        {toPersian(viewingImageIndex + 1)} / {toPersian(viewingDoc.imageUrls.length)}
+                      </span>
+                      <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1.5">
+                        {viewingDoc.imageUrls.map((_, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => setViewingImageIndex(i)}
+                            className={`h-1.5 rounded-full transition-all ${
+                              i === viewingImageIndex ? "w-6 bg-white" : "w-1.5 bg-white/50"
+                            }`}
+                          />
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <InfoRow label="شماره" value={viewingDoc.documentNumber} copyable />
+              <InfoRow label="تاریخ صدور" value={viewingDoc.issueDateJalali} faNum />
+              <InfoRow label="تاریخ انقضا" value={viewingDoc.expiryDateJalali} faNum />
+              <InfoRow label="محل نگهداری" value={viewingDoc.physicalLocation} />
+            </div>
+            {viewingDoc.notes && (
+              <div className="rounded-xl p-3 brand-bg-soft">
+                <p className="text-[10px] text-soft mb-1">یادداشت</p>
+                <p className="text-xs text-strong">{viewingDoc.notes}</p>
+              </div>
+            )}
+          </div>
+        )}
       </Sheet>
 
-      {/* Delete confirmations */}
+      {/* Delete confirmation */}
       <AnimatePresence>
-        {deleteDocId && (
-          <DeleteConfirm
-            title="حذف مدرک؟"
-            onCancel={() => setDeleteDocId(null)}
-            onConfirm={() => { removeDocument(deleteDocId); setDeleteDocId(null); }}
-          />
-        )}
-        {deleteCrId && (
-          <DeleteConfirm
-            title="حذف رمز؟"
-            onCancel={() => setDeleteCrId(null)}
-            onConfirm={() => { removeCredential(deleteCrId); setDeleteCrId(null); }}
-          />
+        {deleteConfirmId && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setDeleteConfirmId(null)}
+            className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-6"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="surface-card rounded-3xl p-5 max-w-xs w-full text-center"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-red-500/15 mx-auto mb-3 flex items-center justify-center">
+                <Trash2 className="w-6 h-6 text-red-500" />
+              </div>
+              <p className="text-sm font-bold text-strong mb-1">حذف مدرک؟</p>
+              <p className="text-[11px] text-soft mb-4">این عمل قابل بازگشت نیست.</p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDeleteConfirmId(null)}
+                  className="flex-1 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-sm font-bold"
+                >
+                  انصراف
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    removeDocument(deleteConfirmId);
+                    setDeleteConfirmId(null);
+                  }}
+                  className="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-sm font-bold hover:bg-red-600 transition-colors"
+                >
+                  حذف
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>
   );
 }
 
-function Field({ label, value, editable, onSave, children, copyable = false, dir = "rtl" }: { label: string; value?: string; editable?: boolean; onSave?: (v: string) => void; children?: React.ReactNode; copyable?: boolean; dir?: "rtl" | "ltr" }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value ?? "");
-  const [copied, setCopied] = useState(false);
-  // If children are provided, render them (form input mode).
-  if (children !== undefined) {
-    return (
-      <div>
-        <label className="block text-xs font-semibold text-soft mb-1.5">{label}</label>
-        {children}
-      </div>
-    );
-  }
-  const handleCopy = () => {
-    if (!value) return;
-    try {
-      navigator.clipboard?.writeText(value);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {}
-  };
-  // Otherwise render the editable display mode (for personal info).
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="flex items-center justify-between">
-        <span className="text-soft">{label}</span>
-        <div className="flex items-center gap-1">
-          {copyable && value && (
-            <button type="button" onClick={handleCopy} className="text-violet-500 dark:text-violet-300 hover:bg-violet-500/10 rounded p-0.5 transition-colors" aria-label={`کپی ${label}`}>
-              {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
-            </button>
-          )}
-          {editable && (
-            <button type="button" onClick={() => { setDraft(value ?? ""); setEditing(true); }} className="text-violet-500 dark:text-violet-300">
-              <Pencil className="w-3 h-3" />
-            </button>
-          )}
-        </div>
-      </div>
-      {editing ? (
-        <div className="mt-1 flex gap-1">
-          <input
-            type="text"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            className="flex-1 surface-input rounded-lg px-2 py-1 text-xs text-strong focus:outline-none focus:ring-1 focus:ring-violet-500/40 fa-num"
-          />
-          <button
-            type="button"
-            onClick={() => { onSave?.(draft); setEditing(false); }}
-            className="px-2 rounded-lg bg-violet-500 text-white"
-          >
-            <Check className="w-3 h-3" />
-          </button>
-        </div>
-      ) : (
-        <p className="text-strong font-medium fa-num" dir={dir}>{value || "—"}</p>
-      )}
+      <label className="block text-xs font-semibold text-soft mb-1.5">{label}</label>
+      {children}
     </div>
   );
 }
 
-function CredentialCard({ credential, onEdit, onDelete }: { credential: CredentialItem; onEdit: () => void; onDelete: () => void }) {
-  const [showPassword, setShowPassword] = useState(false);
-  const [copied, setCopied] = useState<"user" | "pass" | null>(null);
-
-  const copy = (text: string, what: "user" | "pass") => {
-    navigator.clipboard?.writeText(text);
-    setCopied(what);
-    setTimeout(() => setCopied(null), 1500);
-  };
-
+function InfoRow({ label, value, faNum, copyable }: { label: string; value?: string; faNum?: boolean; copyable?: boolean }) {
+  if (!value) return null;
   return (
-    <AppCard className="!p-3.5">
-      <div className="flex items-start justify-between gap-2 mb-3">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center text-lg shrink-0">🔐</span>
-          <div className="min-w-0">
-            <p className="text-sm font-bold text-strong truncate">{credential.serviceName}</p>
-            {credential.url && (
-              <p className="text-[10px] text-soft truncate" dir="ltr">{credential.url}</p>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-1">
-          <button type="button" onClick={onEdit} className="w-7 h-7 rounded-lg bg-violet-500/10 hover:bg-violet-500/20 text-violet-500 dark:text-violet-300 flex items-center justify-center transition-colors">
-            <Pencil className="w-3 h-3" />
-          </button>
-          <button type="button" onClick={onDelete} className="w-7 h-7 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-500 flex items-center justify-center transition-colors">
-            <Trash2 className="w-3 h-3" />
-          </button>
-        </div>
+    <div>
+      <p className="text-[10px] text-soft">{label}</p>
+      <div className="flex items-center gap-1">
+        <span className={`text-xs text-strong font-medium flex-1 truncate ${faNum ? "fa-num" : ""}`} dir="ltr">
+          {value}
+        </span>
+        {copyable && <CopyChip value={value} label={label} size="sm" />}
       </div>
-      <div className="space-y-1.5">
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] text-soft w-16 shrink-0">نام کاربری</span>
-          <input readOnly value={credential.username} dir="ltr" className="flex-1 surface-input rounded-lg px-2 py-1 text-[11px] text-strong fa-num text-left bg-slate-50 dark:bg-slate-800/50" />
-          <button type="button" onClick={() => copy(credential.username, "user")} className="w-7 h-7 rounded-lg bg-violet-500/10 text-violet-500 dark:text-violet-300 flex items-center justify-center" aria-label="کپی">
-            {copied === "user" ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
-          </button>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] text-soft w-16 shrink-0">گذرواژه</span>
-          <input
-            readOnly
-            type={showPassword ? "text" : "password"}
-            value={credential.password}
-            dir="ltr"
-            className="flex-1 surface-input rounded-lg px-2 py-1 text-[11px] text-strong fa-num text-left bg-slate-50 dark:bg-slate-800/50"
-          />
-          <button type="button" onClick={() => setShowPassword((v) => !v)} className="w-7 h-7 rounded-lg bg-violet-500/10 text-violet-500 dark:text-violet-300 flex items-center justify-center" aria-label="نمایش/پنهان">
-            {showPassword ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-          </button>
-          <button type="button" onClick={() => copy(credential.password, "pass")} className="w-7 h-7 rounded-lg bg-violet-500/10 text-violet-500 dark:text-violet-300 flex items-center justify-center" aria-label="کپی">
-            {copied === "pass" ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
-          </button>
-        </div>
-        {credential.notes && (
-          <p className="text-[10px] text-soft mt-1">{credential.notes}</p>
-        )}
-      </div>
-    </AppCard>
-  );
-}
-
-function DeleteConfirm({ title, onCancel, onConfirm }: { title: string; onCancel: () => void; onConfirm: () => void }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      onClick={onCancel}
-      className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-6"
-    >
-      <motion.div
-        initial={{ scale: 0.9, y: 20 }}
-        animate={{ scale: 1, y: 0 }}
-        exit={{ scale: 0.9, y: 20 }}
-        onClick={(e) => e.stopPropagation()}
-        className="surface-card rounded-3xl p-5 max-w-xs w-full text-center"
-      >
-        <div className="w-12 h-12 rounded-2xl bg-red-500/15 mx-auto mb-3 flex items-center justify-center">
-          <Trash2 className="w-6 h-6 text-red-500" />
-        </div>
-        <p className="text-sm font-bold text-strong mb-1">{title}</p>
-        <p className="text-[11px] text-soft mb-4">این عمل قابل بازگشت نیست.</p>
-        <div className="flex gap-2">
-          <button type="button" onClick={onCancel} className="flex-1 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-sm font-bold">انصراف</button>
-          <button type="button" onClick={onConfirm} className="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-sm font-bold hover:bg-red-600 transition-colors">حذف</button>
-        </div>
-      </motion.div>
-    </motion.div>
+    </div>
   );
 }

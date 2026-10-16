@@ -1,14 +1,8 @@
 "use client";
 
-import { Home, FileText, Phone, Users, Settings } from "lucide-react";
+import { Home, FileText, Receipt, Users, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-export type ScreenId =
-  | "home"
-  | "documents"
-  | "contacts"
-  | "family"
-  | "settings";
+import type { ScreenId } from "@/lib/types";
 
 interface BottomNavProps {
   active: ScreenId;
@@ -17,9 +11,9 @@ interface BottomNavProps {
 
 const NAV_ITEMS: { id: ScreenId; label: string; icon: typeof Home }[] = [
   { id: "home", label: "خانه", icon: Home },
+  { id: "people", label: "افراد", icon: Users },
   { id: "documents", label: "مدارک", icon: FileText },
-  { id: "contacts", label: "تماس‌ها", icon: Phone },
-  { id: "family", label: "افراد", icon: Users },
+  { id: "bills", label: "قبوض", icon: Receipt },
   { id: "settings", label: "تنظیمات", icon: Settings },
 ];
 
@@ -39,15 +33,13 @@ export function BottomNav({ active, onChange }: BottomNavProps) {
                 aria-label={item.label}
                 className={cn(
                   "w-full h-full flex flex-col items-center justify-center gap-1 relative transition-colors",
-                  isActive
-                    ? "text-violet-500 dark:text-violet-300"
-                    : "text-soft hover:text-violet-500 dark:hover:text-violet-300"
+                  isActive ? "brand-text" : "text-soft"
                 )}
               >
                 <span
                   className={cn(
                     "absolute top-1 h-1 rounded-full transition-all",
-                    isActive ? "w-8 bg-violet-500" : "w-0 bg-transparent"
+                    isActive ? "w-8 brand-gradient" : "w-0 bg-transparent"
                   )}
                 />
                 <Icon

@@ -4,31 +4,13 @@ import { Toaster } from "@/components/ui/toaster";
 import { ThemeBootstrap } from "@/components/theme-bootstrap";
 
 export const metadata: Metadata = {
-  title: "روز مبادا | پرونده اضطراری خانواده",
+  title: "روز مبادا | پرونده دیجیتال خانواده",
   description:
-    "پرونده دیجیتال اضطراری خانواده؛ دسترسی آفلاین به مدارک، تماس‌های ضروری، راهنماهای بحران و پشتیبان‌گیری امن.",
-  keywords: [
-    "روز مبادا",
-    "پرونده اضطراری",
-    "مدارک خانواده",
-    "تماس‌های اضطراری",
-    "راهنمای بحران",
-    "آفلاین",
-    "بازار",
-    "اندروید",
-  ],
-  authors: [{ name: "Rooz-e Mobada" }],
-  manifest: "/manifest.webmanifest",
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "black-translucent",
-    title: "روز مبادا",
-  },
-  icons: {
-    icon: "/icon-192.png",
-    apple: "/icon-192.png",
-  },
+    "پرونده دیجیتال آفلاین برای مدیریت مدارک، کارت‌های بانکی، قبوض و اطلاعات شخصی خانواده.",
   applicationName: "روز مبادا",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "روز مبادا" },
+  icons: { icon: "/icon-192.png", apple: "/icon-192.png" },
 };
 
 export const viewport: Viewport = {
@@ -44,27 +26,23 @@ export const viewport: Viewport = {
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
-  // Inline script prevents theme flash by applying the dark class
-  // before any React code runs. It reads from localStorage (zustand persist key).
+}: Readonly<{ children: React.ReactNode }>) {
   const themeScript = `
     (function() {
       try {
-        var raw = localStorage.getItem('rooz-e-mobada-v2-final');
+        var raw = localStorage.getItem('rooz-e-mobada-v3');
         var theme = 'dark';
+        var color = 'violet';
         if (raw) {
-          var parsed = JSON.parse(raw);
-          theme = (parsed && parsed.state && parsed.state.theme) || 'dark';
+          var p = JSON.parse(raw);
+          theme = p?.state?.theme || 'dark';
+          color = p?.state?.colorTheme || 'violet';
         }
-        if (theme === 'dark') {
-          document.documentElement.classList.add('dark');
-        } else {
-          document.documentElement.classList.remove('dark');
-        }
+        if (theme === 'dark') document.documentElement.classList.add('dark');
+        document.documentElement.setAttribute('data-theme', color);
       } catch (e) {
         document.documentElement.classList.add('dark');
+        document.documentElement.setAttribute('data-theme', 'violet');
       }
     })();
   `;
@@ -73,7 +51,7 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body className="font-vazir antialiased">
+      <body className="font-sans antialiased">
         <ThemeBootstrap />
         {children}
         <Toaster />
