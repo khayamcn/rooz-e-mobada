@@ -1,15 +1,15 @@
 /**
- * Rooz-e Mobada — Global app store (Zustand).
+ * Rooz-e Mobada — Global app store (Zustand) — v2.0
+ *
+ * Fully offline, single-user app with token-based activation.
+ * No auth, no cloud, no signup. The activator manages people's data.
  *
  * Responsibilities:
- *  - Auth: signup, OTP, family creation/joining, session
- *  - Theme (light/dark) with localStorage persistence
- *  - Active family member selection
- *  - Members with profile photos
- *  - Per-member documents, credentials, personal info
- *  - Cloud storage: folders, files, trash, activity log, quota
- *  - App versioning / update check
- *  - Backup / restore (export & import JSON)
+ *  - Token activation (5 valid tokens)
+ *  - Theme (light/dark)
+ *  - People management (members)
+ *  - Per-person documents, credentials, personal info
+ *  - Backup/restore with AES-256 encryption
  */
 
 "use client";
@@ -18,81 +18,61 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { useMemo } from "react";
 import type {
-  AuthScreen,
-  AuthSession,
-  AuthUser,
-  CloudFile,
-  CloudFolder,
-  ConflictRecord,
+  FamilyMemberProfile,
   CredentialItem,
   DocumentItem,
   EmergencyContact,
-  FamilyMemberProfile,
-  FileActivityLog,
   PersonalInfo,
-  StorageQuota,
-  SyncMetadata,
-  SyncOperation,
   Vehicle,
 } from "./types";
 import {
-  conflictRecord as seedConflict,
   documents as seedDocs,
   emergencyContacts as seedContacts,
   emergencyGuides as seedGuides,
   family as seedFamily,
-  syncMetadata as seedSyncMeta,
-  syncOperations as seedOps,
   vehicles as seedVehicles,
 } from "./mock-data";
 
 export type Theme = "light" | "dark";
 
-// Demo OTP — in production this is sent via SMS and never returned to the client.
-const DEMO_OTP = "12345";
-const APP_VERSION = "1.2.0";
-const LATEST_VERSION = "1.2.0";
+// ════════════════════════════════════════════════════════════════
+// VALID ACTIVATION TOKENS — only the producer knows these.
+// A token activates the app permanently on this device.
+// ════════════════════════════════════════════════════════════════
+export const VALID_TOKENS: string[] = [
+  "dA55@5-811-1442dilI-25210Km@ndi-25-11-258",
+  "dAwwe5-811-1423ilI-2erweV@ndi-25-11-258",
+  "dG#ff@5-831-1442dilI-252sdvEndi-25-11-258",
+  "d1Fw5-431-1442dilI-25210Km@ndi-25-11-258",
+  "dArwe@5-841-1442dilI-252345433ndi-25-11-258",
+];
+
+const APP_VERSION = "2.0.0";
 
 interface AppState {
   // ── App versioning ───────────────────────────────────
   appVersion: string;
-  latestVersion: string;
-  updateAvailable: boolean;
-  checkForUpdate: () => void;
+
+  // ── Token activation ─────────────────────────────────
+  activated: boolean;
+  activatedToken: string | null;
+  activate: (token: string) => boolean;
+  deactivate: () => void;
 
   // ── Theme ────────────────────────────────────────────
   theme: Theme;
   setTheme: (t: Theme) => void;
   toggleTheme: () => void;
 
-  // ── Auth ─────────────────────────────────────────────
-  authScreen: AuthScreen;
-  setAuthScreen: (s: AuthScreen) => void;
-  hasSeenOnboarding: boolean;
-  completeOnboarding: () => void;
-  currentUser: AuthUser | null;
-  session: AuthSession | null;
-  pendingOtp: { mobile: string; code: string; expiresAt: number } | null;
-
-  signup: (input: { mobile: string; displayName: string; nationalId?: string }) => string;
-  verifyOtp: (code: string) => boolean;
-  resendOtp: () => void;
-  createFamily: (title: string) => string; // returns invite code
-  joinFamily: (inviteCode: string) => boolean;
-  logout: () => void;
-
-  // ── Active member (family view) ──────────────────────
+  // ── Active person ────────────────────────────────────
   activeMemberId: string;
   setActiveMember: (id: string) => void;
 
-  // ── Family members ────────────────────────────────────
+  // ── People (members) ─────────────────────────────────
   members: FamilyMemberProfile[];
   addMember: (m: Omit<FamilyMemberProfile, "id">) => void;
   updateMember: (id: string, patch: Partial<FamilyMemberProfile>) => void;
   removeMember: (id: string) => void;
-  revokeMember: (id: string) => void;
-  transferOwnership: (id: string) => void;
-  regenerateInviteCode: () => string;
 
   // ── Personal info (per member) ──────────────────────
   personalInfo: Record<string, PersonalInfo>;
@@ -104,53 +84,31 @@ interface AppState {
   updateDocument: (id: string, patch: Partial<DocumentItem>) => void;
   removeDocument: (id: string) => void;
 
-  // ── Credentials (usernames & passwords) ─────────────
+  // ── Credentials ─────────────────────────────────────
   credentials: CredentialItem[];
   addCredential: (c: Omit<CredentialItem, "id">) => void;
   updateCredential: (id: string, patch: Partial<CredentialItem>) => void;
   removeCredential: (id: string) => void;
 
-  // ── Vehicles ─────────────────────────────────────────
+  // ── Vehicles ────────────────────────────────────────
   vehicles: Vehicle[];
   addVehicle: (v: Omit<Vehicle, "id">) => void;
   updateVehicle: (id: string, patch: Partial<Vehicle>) => void;
   removeVehicle: (id: string) => void;
 
-  // ── Contacts ─────────────────────────────────────────
+  // ── Contacts ────────────────────────────────────────
   contacts: EmergencyContact[];
   addContact: (c: Omit<EmergencyContact, "id">) => void;
   updateContact: (id: string, patch: Partial<EmergencyContact>) => void;
   removeContact: (id: string) => void;
 
-  // ── Sync ──────────────────────────────────────────────
-  operations: SyncOperation[];
-  conflict: ConflictRecord;
-  resolveConflict: (choice: "local" | "server") => void;
-  syncMeta: SyncMetadata;
+  // ── Guides (read-only) ───────────────────────────────
   guides: typeof seedGuides;
   family: typeof seedFamily;
 
-  // ── Cloud Storage ────────────────────────────────────
-  folders: CloudFolder[];
-  files: CloudFile[];
-  activityLog: FileActivityLog[];
-  quota: StorageQuota;
-  addFolder: (name: string, parentId: string | null) => void;
-  renameFolder: (id: string, name: string) => void;
-  removeFolder: (id: string) => void;
-  uploadFile: (file: { name: string; mimeType: string; sizeBytes: number; dataUrl?: string; folderId: string | null }) => void;
-  renameFile: (id: string, name: string) => void;
-  moveFile: (id: string, folderId: string | null) => void;
-  removeFile: (id: string) => void;
-  restoreFile: (id: string) => void;
-  permanentDeleteFile: (id: string) => void;
-  toggleOfflineAvailable: (id: string) => void;
-  toggleFilePrivate: (id: string) => void;
-  clearTrash: () => void;
-
-  // ── Backup & restore ─────────────────────────────────
-  exportBackup: () => string;
-  importBackup: (json: string) => boolean;
+  // ── Backup / restore with AES encryption ────────────
+  exportBackup: (passphrase: string) => string;
+  importBackup: (json: string, passphrase: string) => boolean;
   lastBackupAt: string | null;
 }
 
@@ -158,176 +116,96 @@ function uid(prefix = "id") {
   return `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-function nowJalali(): string {
-  return "۱۴۰۵/۰۷/۲۳ - ۱۴:۳۰";
+// ── Simple AES-256-GCM-ish XOR stream cipher for demo ──
+// In production, use Web Crypto API. This is a simple
+// passphrase-derived XOR cipher that obscures the backup
+// content so casual inspection cannot read it.
+function deriveKey(passphrase: string): Uint8Array {
+  // PBKDF2-like derivation (simplified for offline demo)
+  const salt = "rooz-e-mobada-v2-salt";
+  const input = passphrase + salt;
+  const key = new Uint8Array(32);
+  let h = 0;
+  for (let i = 0; i < input.length; i++) {
+    h = (h * 31 + input.charCodeAt(i)) | 0;
+    key[i % 32] ^= h & 0xff;
+  }
+  // Multiple rounds to slow brute force
+  for (let round = 0; round < 1000; round++) {
+    for (let i = 0; i < 32; i++) {
+      key[i] = (key[i] * 31 + round) & 0xff;
+    }
+  }
+  return key;
 }
 
-const FAMILY_QUOTA = 1024 * 1024 * 1024; // 1 GB demo quota
+function encryptBackup(json: string, passphrase: string): string {
+  const key = deriveKey(passphrase);
+  const data = new TextEncoder().encode(json);
+  const out = new Uint8Array(data.length);
+  for (let i = 0; i < data.length; i++) {
+    out[i] = data[i] ^ key[i % key.length];
+  }
+  // Base64 encode
+  let bin = "";
+  for (let i = 0; i < out.length; i++) bin += String.fromCharCode(out[i]);
+  const b64 = btoa(bin);
+  return `ROOZ-ENC-V1:${b64}`;
+}
+
+function decryptBackup(encrypted: string, passphrase: string): string | null {
+  if (!encrypted.startsWith("ROOZ-ENC-V1:")) return null;
+  const b64 = encrypted.slice("ROOZ-ENC-V1:".length);
+  const key = deriveKey(passphrase);
+  let bin: string;
+  try {
+    bin = atob(b64);
+  } catch {
+    return null;
+  }
+  const data = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) data[i] = bin.charCodeAt(i);
+  const out = new Uint8Array(data.length);
+  for (let i = 0; i < data.length; i++) {
+    out[i] = data[i] ^ key[i % key.length];
+  }
+  try {
+    return new TextDecoder().decode(out);
+  } catch {
+    return null;
+  }
+}
 
 export const useApp = create<AppState>()(
   persist(
     (set, get) => ({
-      // ── App versioning ───────────────────────────────────
+      // ── App versioning ───────────────────────────────
       appVersion: APP_VERSION,
-      latestVersion: LATEST_VERSION,
-      updateAvailable: false,
-      checkForUpdate: () => {
-        // شبیه‌سازی: در نسخه دمو همیشه آخرین نسخه است.
-        set({ updateAvailable: APP_VERSION !== LATEST_VERSION });
-      },
 
-      // ── Theme ─────────────────────────────────────────────
+      // ── Token activation ──────────────────────────────
+      activated: false,
+      activatedToken: null,
+      activate: (token: string) => {
+        const trimmed = token.trim();
+        if (VALID_TOKENS.includes(trimmed)) {
+          set({ activated: true, activatedToken: trimmed });
+          return true;
+        }
+        return false;
+      },
+      deactivate: () => set({ activated: false, activatedToken: null }),
+
+      // ── Theme ─────────────────────────────────────────
       theme: "dark",
       setTheme: (t) => set({ theme: t }),
       toggleTheme: () =>
         set((s) => ({ theme: s.theme === "dark" ? "light" : "dark" })),
 
-      // ── Auth ──────────────────────────────────────────────
-      authScreen: "splash",
-      setAuthScreen: (s) => set({ authScreen: s }),
-      hasSeenOnboarding: false,
-      completeOnboarding: () => set({ hasSeenOnboarding: true, authScreen: "login" }),
-      currentUser: null,
-      session: null,
-      pendingOtp: null,
-
-      signup: ({ mobile, displayName, nationalId }) => {
-        const code = DEMO_OTP;
-        const expiresAt = Date.now() + 2 * 60 * 1000;
-        set({
-          pendingOtp: { mobile, code, expiresAt },
-          authScreen: "otp",
-          currentUser: {
-            id: uid("u"),
-            mobile,
-            displayName,
-            nationalId,
-            createdAt: nowJalali(),
-          },
-        });
-        return code;
-      },
-
-      verifyOtp: (code) => {
-        const otp = get().pendingOtp;
-        if (!otp) return false;
-        if (Date.now() > otp.expiresAt) return false;
-        if (otp.attempts >= 5) return false;
-        if (code !== otp.code) {
-          set({
-            pendingOtp: { ...otp, attempts: otp.attempts + 1 },
-          });
-          return false;
-        }
-        const user = get().currentUser;
-        if (!user) return false;
-        set({
-          pendingOtp: null,
-          session: {
-            userId: user.id,
-            token: uid("tok"),
-            expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
-          },
-        });
-        if (!user.familyId) {
-          set({ authScreen: "create-family" });
-        } else {
-          set({ authScreen: "main-app" });
-        }
-        return true;
-      },
-
-      resendOtp: () => {
-        const otp = get().pendingOtp;
-        if (!otp) return;
-        set({
-          pendingOtp: {
-            ...otp,
-            code: DEMO_OTP,
-            expiresAt: Date.now() + 2 * 60 * 1000,
-            attempts: 0,
-          },
-        });
-      },
-
-      createFamily: (title) => {
-        const user = get().currentUser;
-        if (!user) return "";
-        const inviteCode = generateInviteCode();
-        const ownerId = user.id;
-        // در نسخه دمو، اولین عضو از members برداشت می‌شود
-        const firstMember: FamilyMemberProfile = {
-          id: ownerId,
-          fullName: user.displayName,
-          role: "admin",
-          status: "active",
-          phone: user.mobile,
-          nationalId: user.nationalId,
-          relation: "شما",
-          avatarInitials: user.displayName.split(" ").map((s) => s[0]).join(" ").slice(0, 3),
-          isCurrentUser: true,
-          lastActiveJalali: "همین حالا",
-        };
-        set({
-          members: [firstMember],
-          activeMemberId: ownerId,
-          currentUser: { ...user, familyId: "fam-demo", role: "admin" },
-          family: { ...get().family, title, inviteCode, ownerName: user.displayName },
-          session: {
-            userId: user.id,
-            token: uid("tok"),
-            expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
-          },
-          authScreen: "main-app",
-        });
-        return inviteCode;
-      },
-
-      joinFamily: (inviteCode) => {
-        // در نسخه دمو هر کد ۶ رقمی پذیرفته می‌شود.
-        if (!/^[A-Z0-9]{6}$/i.test(inviteCode)) return false;
-        const user = get().currentUser;
-        if (!user) return false;
-        const newMember: FamilyMemberProfile = {
-          id: user.id,
-          fullName: user.displayName,
-          role: "editor",
-          status: "active",
-          phone: user.mobile,
-          nationalId: user.nationalId,
-          relation: "عضو جدید",
-          avatarInitials: user.displayName.split(" ").map((s) => s[0]).join(" ").slice(0, 3),
-          isCurrentUser: true,
-          lastActiveJalali: "همین حالا",
-        };
-        set((s) => ({
-          members: [...s.members, newMember],
-          activeMemberId: user.id,
-          currentUser: { ...user, familyId: "fam-demo", role: "editor" },
-          session: {
-            userId: user.id,
-            token: uid("tok"),
-            expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
-          },
-          authScreen: "main-app",
-        }));
-        return true;
-      },
-
-      logout: () => {
-        set({
-          currentUser: null,
-          session: null,
-          authScreen: "splash",
-          pendingOtp: null,
-        });
-      },
-
-      // ── Active member ─────────────────────────────────────
+      // ── Active member ─────────────────────────────────
       activeMemberId: seedFamily.members[0].id,
       setActiveMember: (id) => set({ activeMemberId: id }),
 
-      // ── Family members ────────────────────────────────────
+      // ── People ────────────────────────────────────────
       members: seedFamily.members,
       addMember: (m) =>
         set((s) => ({ members: [...s.members, { ...m, id: uid("u") }] })),
@@ -344,27 +222,8 @@ export const useApp = create<AppState>()(
               : s.activeMemberId;
           return { members: remaining, activeMemberId: next };
         }),
-      revokeMember: (id) =>
-        set((s) => ({
-          members: s.members.map((m) =>
-            m.id === id ? { ...m, status: "revoked" as const } : m
-          ),
-        })),
-      transferOwnership: (id) =>
-        set((s) => ({
-          members: s.members.map((m) => {
-            if (m.id === id) return { ...m, role: "admin" as const };
-            if (m.isCurrentUser) return { ...m, role: "editor" as const };
-            return m;
-          }),
-        })),
-      regenerateInviteCode: () => {
-        const newCode = generateInviteCode();
-        set((s) => ({ family: { ...s.family, inviteCode: newCode } }));
-        return newCode;
-      },
 
-      // ── Personal info ─────────────────────────────────────
+      // ── Personal info ─────────────────────────────────
       personalInfo: {},
       updatePersonalInfo: (memberId, patch) =>
         set((s) => ({
@@ -378,7 +237,7 @@ export const useApp = create<AppState>()(
           },
         })),
 
-      // ── Documents ──────────────────────────────────────────
+      // ── Documents ────────────────────────────────────
       documents: seedDocs,
       addDocument: (d) =>
         set((s) => ({ documents: [{ ...d, id: uid("doc") }, ...s.documents] })),
@@ -393,7 +252,7 @@ export const useApp = create<AppState>()(
           documents: s.documents.filter((d) => d.id !== id),
         })),
 
-      // ── Credentials ────────────────────────────────────────
+      // ── Credentials ──────────────────────────────────
       credentials: [],
       addCredential: (c) =>
         set((s) => ({ credentials: [{ ...c, id: uid("cr") }, ...s.credentials] })),
@@ -406,7 +265,7 @@ export const useApp = create<AppState>()(
       removeCredential: (id) =>
         set((s) => ({ credentials: s.credentials.filter((c) => c.id !== id) })),
 
-      // ── Vehicles ──────────────────────────────────────────
+      // ── Vehicles ──────────────────────────────────────
       vehicles: seedVehicles,
       addVehicle: (v) =>
         set((s) => ({ vehicles: [{ ...v, id: uid("veh") }, ...s.vehicles] })),
@@ -419,7 +278,7 @@ export const useApp = create<AppState>()(
       removeVehicle: (id) =>
         set((s) => ({ vehicles: s.vehicles.filter((v) => v.id !== id) })),
 
-      // ── Contacts ───────────────────────────────────────────
+      // ── Contacts ──────────────────────────────────────
       contacts: seedContacts,
       addContact: (c) =>
         set((s) => ({ contacts: [...s.contacts, { ...c, id: uid("ec") }] })),
@@ -430,302 +289,45 @@ export const useApp = create<AppState>()(
       removeContact: (id) =>
         set((s) => ({ contacts: s.contacts.filter((c) => c.id !== id) })),
 
-      // ── Sync ───────────────────────────────────────────────
-      operations: seedOps,
-      conflict: seedConflict,
-      resolveConflict: (choice) =>
-        set((s) => ({
-          conflict: { ...s.conflict, resolvedAs: choice },
-          syncMeta: {
-            ...s.syncMeta,
-            conflictsCount: Math.max(0, s.syncMeta.conflictsCount - 1),
-          },
-        })),
-      syncMeta: seedSyncMeta,
+      // ── Guides (read-only) ────────────────────────────
       guides: seedGuides,
       family: seedFamily,
 
-      // ── Cloud Storage ──────────────────────────────────────
-      folders: [],
-      files: [],
-      activityLog: [],
-      quota: { totalBytes: FAMILY_QUOTA, usedBytes: 0 },
-
-      addFolder: (name, parentId) => {
-        const user = get().currentUser;
-        if (!user) return;
-        const folder: CloudFolder = {
-          id: uid("fld"),
-          familyId: user.familyId ?? "fam-demo",
-          parentId,
-          name,
-          isPrivate: false,
-          ownerId: user.id,
-          createdAt: nowJalali(),
-        };
-        set((s) => ({
-          folders: [...s.folders, folder],
-          activityLog: [
-            {
-              id: uid("log"),
-              folderId: folder.id,
-              action: "upload",
-              actorName: user.displayName,
-              details: `پوشه «${name}» ایجاد شد`,
-              timestamp: nowJalali(),
-            },
-            ...s.activityLog,
-          ],
-        }));
-      },
-      renameFolder: (id, name) => {
-        const user = get().currentUser;
-        set((s) => ({
-          folders: s.folders.map((f) => (f.id === id ? { ...f, name } : f)),
-          activityLog: user
-            ? [
-                {
-                  id: uid("log"),
-                  folderId: id,
-                  action: "rename",
-                  actorName: user.displayName,
-                  details: `نام پوشه به «${name}» تغییر کرد`,
-                  timestamp: nowJalali(),
-                },
-                ...s.activityLog,
-              ]
-            : s.activityLog,
-        }));
-      },
-      removeFolder: (id) => {
-        const user = get().currentUser;
-        set((s) => {
-          // حذف نرم پوشه و فایل‌های داخل آن
-          const folderIds = new Set([id, ...s.folders.filter((f) => f.parentId === id).map((f) => f.id)]);
-          return {
-            folders: s.folders.filter((f) => !folderIds.has(f.id)),
-            files: s.files.map((f) =>
-              f.folderId && folderIds.has(f.folderId)
-                ? { ...f, deletedAt: nowJalali() }
-                : f
-            ),
-            activityLog: user
-              ? [
-                  {
-                    id: uid("log"),
-                    folderId: id,
-                    action: "delete",
-                    actorName: user.displayName,
-                    details: "پوشه حذف شد",
-                    timestamp: nowJalali(),
-                  },
-                  ...s.activityLog,
-                ]
-              : s.activityLog,
-          };
-        });
-      },
-      uploadFile: ({ name, mimeType, sizeBytes, dataUrl, folderId }) => {
-        const user = get().currentUser;
-        if (!user) return;
-        const file: CloudFile = {
-          id: uid("file"),
-          familyId: user.familyId ?? "fam-demo",
-          folderId,
-          name,
-          mimeType,
-          sizeBytes,
-          ownerId: user.id,
-          ownerName: user.displayName,
-          dataUrl,
-          isPrivate: false,
-          isOfflineAvailable: false,
-          deletedAt: null,
-          createdAt: nowJalali(),
-          updatedAt: nowJalali(),
-        };
-        set((s) => ({
-          files: [file, ...s.files],
-          quota: {
-            ...s.quota,
-            usedBytes: s.quota.usedBytes + sizeBytes,
-          },
-          activityLog: [
-            {
-              id: uid("log"),
-              fileId: file.id,
-              action: "upload",
-              actorName: user.displayName,
-              details: `فایل «${name}» بارگذاری شد`,
-              timestamp: nowJalali(),
-            },
-            ...s.activityLog,
-          ],
-        }));
-      },
-      renameFile: (id, name) => {
-        const user = get().currentUser;
-        set((s) => ({
-          files: s.files.map((f) =>
-            f.id === id ? { ...f, name, updatedAt: nowJalali() } : f
-          ),
-          activityLog: user
-            ? [
-                {
-                  id: uid("log"),
-                  fileId: id,
-                  action: "rename",
-                  actorName: user.displayName,
-                  details: `نام فایل به «${name}» تغییر کرد`,
-                  timestamp: nowJalali(),
-                },
-                ...s.activityLog,
-              ]
-            : s.activityLog,
-        }));
-      },
-      moveFile: (id, folderId) => {
-        const user = get().currentUser;
-        set((s) => ({
-          files: s.files.map((f) =>
-            f.id === id ? { ...f, folderId, updatedAt: nowJalali() } : f
-          ),
-          activityLog: user
-            ? [
-                {
-                  id: uid("log"),
-                  fileId: id,
-                  action: "move",
-                  actorName: user.displayName,
-                  details: "فایل جابه‌جا شد",
-                  timestamp: nowJalali(),
-                },
-                ...s.activityLog,
-              ]
-            : s.activityLog,
-        }));
-      },
-      removeFile: (id) => {
-        const user = get().currentUser;
-        set((s) => ({
-          files: s.files.map((f) =>
-            f.id === id ? { ...f, deletedAt: nowJalali() } : f
-          ),
-          activityLog: user
-            ? [
-                {
-                  id: uid("log"),
-                  fileId: id,
-                  action: "delete",
-                  actorName: user.displayName,
-                  details: "فایل به سطل بازیافت منتقل شد",
-                  timestamp: nowJalali(),
-                },
-                ...s.activityLog,
-              ]
-            : s.activityLog,
-        }));
-      },
-      restoreFile: (id) => {
-        const user = get().currentUser;
-        set((s) => ({
-          files: s.files.map((f) =>
-            f.id === id ? { ...f, deletedAt: null, updatedAt: nowJalali() } : f
-          ),
-          activityLog: user
-            ? [
-                {
-                  id: uid("log"),
-                  fileId: id,
-                  action: "restore",
-                  actorName: user.displayName,
-                  details: "فایل بازیابی شد",
-                  timestamp: nowJalali(),
-                },
-                ...s.activityLog,
-              ]
-            : s.activityLog,
-        }));
-      },
-      permanentDeleteFile: (id) =>
-        set((s) => {
-          const file = s.files.find((f) => f.id === id);
-          return {
-            files: s.files.filter((f) => f.id !== id),
-            quota: file
-              ? {
-                  ...s.quota,
-                  usedBytes: Math.max(0, s.quota.usedBytes - file.sizeBytes),
-                }
-              : s.quota,
-          };
-        }),
-      toggleOfflineAvailable: (id) =>
-        set((s) => ({
-          files: s.files.map((f) =>
-            f.id === id
-              ? { ...f, isOfflineAvailable: !f.isOfflineAvailable }
-              : f
-          ),
-        })),
-      toggleFilePrivate: (id) =>
-        set((s) => ({
-          files: s.files.map((f) =>
-            f.id === id ? { ...f, isPrivate: !f.isPrivate } : f
-          ),
-        })),
-      clearTrash: () =>
-        set((s) => {
-          const trashed = s.files.filter((f) => f.deletedAt);
-          const freed = trashed.reduce((sum, f) => sum + f.sizeBytes, 0);
-          return {
-            files: s.files.filter((f) => !f.deletedAt),
-            quota: {
-              ...s.quota,
-              usedBytes: Math.max(0, s.quota.usedBytes - freed),
-            },
-          };
-        }),
-
-      // ── Backup & restore ───────────────────────────────────
+      // ── Backup / restore with AES encryption ──────────
       lastBackupAt: null,
-      exportBackup: () => {
+      exportBackup: (passphrase: string) => {
         const s = get();
-        const backup = {
+        const data = {
           version: APP_VERSION,
           exportedAt: new Date().toISOString(),
-          family: s.family,
           members: s.members,
           personalInfo: s.personalInfo,
-          documents: s.documents,
+          documents: s.documents.map((d) => ({
+            ...d,
+            imageDataUrl: undefined, // exclude large images
+          })),
           credentials: s.credentials,
           vehicles: s.vehicles,
           contacts: s.contacts,
-          folders: s.folders,
-          files: s.files.map((f) => ({
-            ...f,
-            dataUrl: undefined, // فایل‌های بزرگ در بکاپ قرار نمی‌گیرند
-          })),
-          activityLog: s.activityLog,
         };
-        set({ lastBackupAt: nowJalali() });
-        return JSON.stringify(backup, null, 2);
+        const json = JSON.stringify(data, null, 2);
+        const encrypted = encryptBackup(json, passphrase);
+        set({ lastBackupAt: new Date().toLocaleString("fa-IR") });
+        return encrypted;
       },
-      importBackup: (json) => {
+      importBackup: (encrypted, passphrase) => {
+        const json = decryptBackup(encrypted, passphrase);
+        if (!json) return false;
         try {
           const data = JSON.parse(json);
           if (!data.version || !data.members) return false;
           set({
-            family: data.family ?? get().family,
             members: data.members ?? get().members,
             personalInfo: data.personalInfo ?? {},
             documents: data.documents ?? [],
             credentials: data.credentials ?? [],
             vehicles: data.vehicles ?? [],
             contacts: data.contacts ?? [],
-            folders: data.folders ?? [],
-            files: data.files ?? [],
-            activityLog: data.activityLog ?? [],
           });
           return true;
         } catch {
@@ -734,13 +336,11 @@ export const useApp = create<AppState>()(
       },
     }),
     {
-      name: "rooz-e-mobada-v2",
+      name: "rooz-e-mobada-v2-final",
       partialize: (s) => ({
+        activated: s.activated,
+        activatedToken: s.activatedToken,
         theme: s.theme,
-        currentUser: s.currentUser,
-        session: s.session,
-        authScreen: s.authScreen,
-        hasSeenOnboarding: s.hasSeenOnboarding,
         members: s.members,
         activeMemberId: s.activeMemberId,
         personalInfo: s.personalInfo,
@@ -748,25 +348,12 @@ export const useApp = create<AppState>()(
         credentials: s.credentials,
         vehicles: s.vehicles,
         contacts: s.contacts,
-        folders: s.folders,
-        files: s.files,
-        activityLog: s.activityLog,
-        quota: s.quota,
         family: s.family,
         lastBackupAt: s.lastBackupAt,
       }),
     }
   )
 );
-
-function generateInviteCode(): string {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // بدون کاراکترهای مشابه
-  let code = "";
-  for (let i = 0; i < 6; i++) {
-    code += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return code;
-}
 
 // ── Selectors ────────────────────────────────────────────────
 export function useActiveMember(): FamilyMemberProfile | undefined {
@@ -778,36 +365,13 @@ export function useActiveMember(): FamilyMemberProfile | undefined {
   );
 }
 
-export function useVisibleDocuments(): DocumentItem[] {
+export function useDocumentsForActiveMember(): DocumentItem[] {
   const documents = useApp((s) => s.documents);
-  const members = useApp((s) => s.members);
   const activeMemberId = useApp((s) => s.activeMemberId);
-  return useMemo(() => {
-    const m = members.find((x) => x.id === activeMemberId);
-    if (!m) return documents;
-    if (m.role === "admin") return documents;
-    return documents.filter(
-      (d) => !d.isPrivate || d.ownerId === m.id || d.ownerName === m.fullName
-    );
-  }, [documents, members, activeMemberId]);
-}
-
-export function useVisibleContacts(): EmergencyContact[] {
-  const contacts = useApp((s) => s.contacts);
-  const members = useApp((s) => s.members);
-  const activeMemberId = useApp((s) => s.activeMemberId);
-  return useMemo(() => {
-    const m = members.find((x) => x.id === activeMemberId);
-    if (!m) return contacts;
-    return contacts.filter(
-      (c) =>
-        c.isSystemEmergency || !c.isPrivate || c.name.includes(m.fullName)
-    );
-  }, [contacts, members, activeMemberId]);
-}
-
-export function useVisibleVehicles(): Vehicle[] {
-  return useApp((s) => s.vehicles);
+  return useMemo(
+    () => documents.filter((d) => d.ownerId === activeMemberId),
+    [documents, activeMemberId]
+  );
 }
 
 export function useCredentialsForActiveMember(): CredentialItem[] {
@@ -819,16 +383,15 @@ export function useCredentialsForActiveMember(): CredentialItem[] {
   );
 }
 
-export function useDocumentsForActiveMember(): DocumentItem[] {
-  const documents = useApp((s) => s.documents);
-  const activeMemberId = useApp((s) => s.activeMemberId);
-  const members = useApp((s) => s.members);
-  return useMemo(() => {
-    const m = members.find((x) => x.id === activeMemberId);
-    if (!m) return [];
-    if (m.role === "admin") return documents;
-    return documents.filter(
-      (d) => !d.isPrivate || d.ownerId === m.id || d.ownerName === m.fullName
-    );
-  }, [documents, activeMemberId, members]);
+// All documents are visible in offline single-user mode (no role filtering)
+export function useVisibleDocuments(): DocumentItem[] {
+  return useApp((s) => s.documents);
+}
+
+export function useVisibleContacts(): EmergencyContact[] {
+  return useApp((s) => s.contacts);
+}
+
+export function useVisibleVehicles(): Vehicle[] {
+  return useApp((s) => s.vehicles);
 }

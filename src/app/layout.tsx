@@ -1,20 +1,12 @@
 import type { Metadata, Viewport } from "next";
-import { Vazirmatn } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { ThemeBootstrap } from "@/components/theme-bootstrap";
 
-const vazirmatn = Vazirmatn({
-  subsets: ["arabic", "latin"],
-  variable: "--font-vazirmatn",
-  display: "swap",
-  weight: ["300", "400", "500", "600", "700", "800"],
-});
-
 export const metadata: Metadata = {
   title: "روز مبادا | پرونده اضطراری خانواده",
   description:
-    "پرونده دیجیتال اضطراری خانواده؛ دسترسی آفلاین به مدارک، تماس‌های ضروری، راهنماهای بحران و همگام‌سازی امن برای لحظات بحرانی.",
+    "پرونده دیجیتال اضطراری خانواده؛ دسترسی آفلاین به مدارک، تماس‌های ضروری، راهنماهای بحران و پشتیبان‌گیری امن.",
   keywords: [
     "روز مبادا",
     "پرونده اضطراری",
@@ -25,7 +17,7 @@ export const metadata: Metadata = {
     "بازار",
     "اندروید",
   ],
-  authors: [{ name: "Rooz-e Mobada Team" }],
+  authors: [{ name: "Rooz-e Mobada" }],
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
@@ -60,7 +52,7 @@ export default function RootLayout({
   const themeScript = `
     (function() {
       try {
-        var raw = localStorage.getItem('rooz-e-mobada-v1');
+        var raw = localStorage.getItem('rooz-e-mobada-v2-final');
         var theme = 'dark';
         if (raw) {
           var parsed = JSON.parse(raw);
@@ -81,9 +73,7 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body
-        className={`${vazirmatn.variable} font-vazir antialiased`}
-      >
+      <body className="font-vazir antialiased">
         <ThemeBootstrap />
         {children}
         <Toaster />

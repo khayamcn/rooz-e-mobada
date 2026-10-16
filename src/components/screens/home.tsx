@@ -29,7 +29,6 @@ export function HomeScreen({ onNavigate }: HomeScreenProps) {
   const contacts = useVisibleContacts();
   const vehicles = useVisibleVehicles();
   const syncMeta = useApp((s) => s.syncMeta);
-  const quota = useApp((s) => s.quota);
   const [showAllMembers, setShowAllMembers] = useState(false);
 
   useEffect(() => {
@@ -291,7 +290,7 @@ export function HomeScreen({ onNavigate }: HomeScreenProps) {
             { icon: "🚗", title: "خودروها", count: toPersian(vehicles.length), target: "documents" as ScreenId },
             { icon: "📕", title: "راهنماها", count: "آفلاین", target: "contacts" as ScreenId },
             { icon: "📄", title: "اسناد", count: toPersian(documents.length), target: "documents" as ScreenId },
-            { icon: "☁️", title: "فضای ابری", count: `${toPersian(Math.floor(quota.usedBytes / (1024 * 1024)))} مگ`, target: "cloud" as ScreenId },
+            { icon: "⚙️", title: "تنظیمات", count: "بکاپ", target: "settings" as ScreenId },
           ].map((s) => (
             <AppCard key={s.title} onClick={() => onNavigate(s.target)} className="!p-3">
               <div className="flex items-center gap-2.5">

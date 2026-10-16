@@ -56,8 +56,6 @@ export function FamilyScreen({ onNavigate }: FamilyScreenProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<MemberFormState>(EMPTY_FORM);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const [roleSheetId, setRoleSheetId] = useState<string | null>(null);
-  const [inviteSheetOpen, setInviteSheetOpen] = useState(false);
 
   const members = useApp((s) => s.members);
   const family = useApp((s) => s.family);
@@ -66,9 +64,6 @@ export function FamilyScreen({ onNavigate }: FamilyScreenProps) {
   const addMember = useApp((s) => s.addMember);
   const updateMember = useApp((s) => s.updateMember);
   const removeMember = useApp((s) => s.removeMember);
-  const revokeMember = useApp((s) => s.revokeMember);
-  const transferOwnership = useApp((s) => s.transferOwnership);
-  const regenerateInviteCode = useApp((s) => s.regenerateInviteCode);
 
   const openAdd = () => {
     setForm(EMPTY_FORM);
@@ -148,16 +143,12 @@ export function FamilyScreen({ onNavigate }: FamilyScreenProps) {
               <p className="text-[11px] text-soft">پرونده خانواده</p>
               <p className="text-base font-bold text-strong">{family.title}</p>
             </div>
-            <button
-              type="button"
-              onClick={() => setInviteSheetOpen(true)}
-              className="text-left bg-violet-500/10 hover:bg-violet-500/20 transition-colors rounded-xl px-3 py-2"
-            >
-              <p className="text-[10px] text-soft">کد دعوت</p>
-              <p className="text-sm font-bold text-violet-500 dark:text-violet-300 fa-num tracking-wider">
-                {family.inviteCode}
+            <div className="text-left bg-violet-500/10 rounded-xl px-3 py-2">
+              <p className="text-[10px] text-soft">تعداد افراد</p>
+              <p className="text-sm font-bold text-violet-500 dark:text-violet-300 fa-num">
+                {toPersian(members.length)} نفر
               </p>
-            </button>
+            </div>
           </div>
           <div className="flex -space-x-2 space-x-reverse">
             {members.map((m) => (
@@ -223,14 +214,6 @@ export function FamilyScreen({ onNavigate }: FamilyScreenProps) {
                   <div className="flex flex-col items-end gap-1 shrink-0">
                     <span className={`px-2 py-1 rounded-lg text-[10px] font-bold ${role.tone}`}>{role.label}</span>
                     <div className="flex gap-1">
-                      <button
-                        type="button"
-                        onClick={() => setRoleSheetId(m.id)}
-                        aria-label="نقش"
-                        className="w-7 h-7 rounded-lg bg-violet-500/10 hover:bg-violet-500/20 text-violet-500 dark:text-violet-300 flex items-center justify-center transition-colors"
-                      >
-                        <UserCog className="w-3 h-3" />
-                      </button>
                       <button
                         type="button"
                         onClick={() => openEdit(m.id)}
@@ -465,106 +448,6 @@ export function FamilyScreen({ onNavigate }: FamilyScreenProps) {
             </div>
             <p className="text-[11px] text-soft mt-2">{ROLE_PERMISSIONS[form.role]}</p>
           </div>
-        </div>
-      </Sheet>
-
-      {/* Role management sheet */}
-      <Sheet
-        open={!!roleSheetId}
-        onClose={() => setRoleSheetId(null)}
-        title="مدیریت نقش عضو"
-        subtitle={members.find((m) => m.id === roleSheetId)?.fullName}
-        footer={
-          <button
-            type="button"
-            onClick={() => setRoleSheetId(null)}
-            className="flex-1 py-2.5 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 text-white text-sm font-bold shadow-glow"
-          >
-            بستن
-          </button>
-        }
-      >
-        <div className="space-y-2">
-          {(["admin", "editor", "viewer"] as const).map((r) => (
-            <button
-              key={r}
-              type="button"
-              onClick={() => {
-                if (roleSheetId) updateMember(roleSheetId, { role: r });
-                setRoleSheetId(null);
-              }}
-              className="w-full p-3 rounded-xl surface-card text-right hover:shadow-glow transition-all"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-bold text-strong">{ROLE_LABELS[r].label}</span>
-                <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${ROLE_LABELS[r].tone}`}>
-                  {ROLE_LABELS[r].label}
-                </span>
-              </div>
-              <p className="text-[11px] text-soft mt-1">{ROLE_PERMISSIONS[r]}</p>
-            </button>
-          ))}
-          <div className="h-px bg-slate-200 dark:bg-slate-700 my-2" />
-          <button
-            type="button"
-            onClick={() => {
-              if (roleSheetId) {
-                transferOwnership(roleSheetId);
-                setRoleSheetId(null);
-              }
-            }}
-            className="w-full p-3 rounded-xl bg-violet-500/10 text-violet-500 dark:text-violet-300 text-right hover:bg-violet-500/20 transition-colors"
-          >
-            <p className="text-sm font-bold">انتقال سرپرستی</p>
-            <p className="text-[11px] text-soft mt-0.5">این عضو سرپرست جدید خانواده می‌شود</p>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              if (roleSheetId) {
-                revokeMember(roleSheetId);
-                setRoleSheetId(null);
-              }
-            }}
-            className="w-full p-3 rounded-xl bg-red-500/10 text-red-500 text-right hover:bg-red-500/20 transition-colors"
-          >
-            <p className="text-sm font-bold">لغو دسترسی</p>
-            <p className="text-[11px] text-soft mt-0.5">کاربر دیگر نمی‌تواند وارد شود</p>
-          </button>
-        </div>
-      </Sheet>
-
-      {/* Invite code sheet */}
-      <Sheet
-        open={inviteSheetOpen}
-        onClose={() => setInviteSheetOpen(false)}
-        title="کد دعوت خانواده"
-        subtitle="این کد را با اعضای خانواده به اشتراک بگذارید"
-        footer={
-          <button
-            type="button"
-            onClick={() => setInviteSheetOpen(false)}
-            className="flex-1 py-2.5 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 text-white text-sm font-bold shadow-glow"
-          >
-            بستن
-          </button>
-        }
-      >
-        <div className="text-center py-4">
-          <p className="text-3xl font-bold tracking-[0.3em] text-violet-500 dark:text-violet-300 fa-num mb-3">
-            {family.inviteCode}
-          </p>
-          <p className="text-[11px] text-soft mb-6">
-            این کد ۷ روز معتبر است. اعضای جدید با وارد کردن این کد و تأیید OTP می‌توانند به خانواده بپیوندند.
-          </p>
-          <button
-            type="button"
-            onClick={() => regenerateInviteCode()}
-            className="w-full py-2.5 rounded-xl bg-violet-500/10 text-violet-500 dark:text-violet-300 text-sm font-bold hover:bg-violet-500/20 transition-colors flex items-center justify-center gap-2"
-          >
-            <RefreshCw className="w-4 h-4" />
-            تولید کد جدید (ابطال کد قبلی)
-          </button>
         </div>
       </Sheet>
 

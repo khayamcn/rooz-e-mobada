@@ -1,6 +1,6 @@
 "use client";
 
-import { Home, FileText, Phone, Users, Cloud, Settings } from "lucide-react";
+import { Home, FileText, Phone, Users, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type ScreenId =
@@ -8,50 +8,28 @@ export type ScreenId =
   | "documents"
   | "contacts"
   | "family"
-  | "cloud"
   | "settings";
 
 interface BottomNavProps {
   active: ScreenId;
   onChange: (id: ScreenId) => void;
-  pendingCount?: number;
-  conflictCount?: number;
 }
 
 const NAV_ITEMS: { id: ScreenId; label: string; icon: typeof Home }[] = [
   { id: "home", label: "خانه", icon: Home },
   { id: "documents", label: "مدارک", icon: FileText },
   { id: "contacts", label: "تماس‌ها", icon: Phone },
-  { id: "cloud", label: "فضای ابری", icon: Cloud },
-  { id: "family", label: "خانواده", icon: Users },
+  { id: "family", label: "افراد", icon: Users },
   { id: "settings", label: "تنظیمات", icon: Settings },
 ];
 
-/**
- * BottomNav — standard 6-item bottom tab bar.
- * Simpler and more touch-friendly than the previous radial design.
- */
-export function BottomNav({
-  active,
-  onChange,
-  pendingCount = 0,
-  conflictCount = 0,
-}: BottomNavProps) {
+export function BottomNav({ active, onChange }: BottomNavProps) {
   return (
-    <nav
-      aria-label="ناوبری اصلی"
-      className="shrink-0 surface-nav border-t"
-    >
-      <ul className="grid grid-cols-6 h-16">
+    <nav aria-label="ناوبری اصلی" className="shrink-0 surface-nav border-t">
+      <ul className="grid grid-cols-5 h-16">
         {NAV_ITEMS.map((item) => {
           const isActive = active === item.id;
           const Icon = item.icon;
-          const badge =
-            item.id === "settings"
-              ? conflictCount + pendingCount > 0
-                ? conflictCount + pendingCount
-                : 0
-              : 0;
           return (
             <li key={item.id}>
               <button
@@ -73,10 +51,7 @@ export function BottomNav({
                   )}
                 />
                 <Icon
-                  className={cn(
-                    "transition-transform",
-                    isActive ? "scale-110" : ""
-                  )}
+                  className={cn("transition-transform", isActive ? "scale-110" : "")}
                   strokeWidth={isActive ? 2.4 : 1.8}
                 />
                 <span
@@ -87,11 +62,6 @@ export function BottomNav({
                 >
                   {item.label}
                 </span>
-                {badge > 0 && (
-                  <span className="absolute top-1 left-1/2 -translate-x-3 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center fa-num">
-                    {badge}
-                  </span>
-                )}
               </button>
             </li>
           );
