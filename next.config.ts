@@ -1,8 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: "standalone",
-  /* config options here */
+  // Use static export for Capacitor (Android APK) wrapping.
+  // Produces a fully static site under /out servable from Android WebView.
+  output: "export",
+  images: {
+    unoptimized: true,
+  },
   typescript: {
     ignoreBuildErrors: true,
   },
