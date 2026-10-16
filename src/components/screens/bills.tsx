@@ -10,7 +10,7 @@ import { Sheet } from "@/components/shared/sheet";
 import { toPersian } from "@/lib/persian";
 import {
   Plus, Pencil, Trash2, Receipt, Droplet, Zap, Flame, Phone, Smartphone,
-  Wifi, MoreHorizontal, Check, Clock,
+  Wifi, MoreHorizontal, Check,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { BillType, Bill } from "@/lib/types";
@@ -42,8 +42,8 @@ export function BillsScreen() {
     provider: "",
     billId: "",
     paymentId: "",
-    amount: "",
-    dueDateJalali: "",
+    
+    
     isPaid: false,
     imageUrls: [] as string[],
     notes: "",
@@ -56,8 +56,8 @@ export function BillsScreen() {
       provider: "",
       billId: "",
       paymentId: "",
-      amount: "",
-      dueDateJalali: "",
+      
+      
       isPaid: false,
       imageUrls: [],
       notes: "",
@@ -74,8 +74,8 @@ export function BillsScreen() {
         provider: "",
         billId: "",
         paymentId: "",
-        amount: "",
-        dueDateJalali: "",
+        
+        
         isPaid: false,
         imageUrls: [],
         notes: "",
@@ -94,8 +94,6 @@ export function BillsScreen() {
       provider: bill.provider,
       billId: bill.billId,
       paymentId: bill.paymentId,
-      amount: bill.amount,
-      dueDateJalali: bill.dueDateJalali ?? "",
       isPaid: bill.isPaid,
       imageUrls: bill.imageDataUrl ? [bill.imageDataUrl] : [],
       notes: bill.notes ?? "",
@@ -112,8 +110,6 @@ export function BillsScreen() {
       provider: form.provider.trim(),
       billId: form.billId || "—",
       paymentId: form.paymentId || "—",
-      amount: form.amount,
-      dueDateJalali: form.dueDateJalali || undefined,
       isPaid: form.isPaid,
       imageDataUrl: form.imageUrls[0],
       notes: form.notes || undefined,
@@ -263,19 +259,6 @@ export function BillsScreen() {
                             <span className="text-strong font-mono fa-num truncate" dir="ltr">{bill.paymentId}</span>
                             <CopyChip value={bill.paymentId} label="شناسه پرداخت" size="sm" />
                           </div>
-                          {bill.amount && (
-                            <div className="flex items-center gap-1">
-                              <span className="text-soft">مبلغ:</span>
-                              <span className="text-strong font-bold fa-num">{toPersian(Number(bill.amount).toLocaleString("en-US"))} ریال</span>
-                            </div>
-                          )}
-                          {bill.dueDateJalali && (
-                            <div className="flex items-center gap-1">
-                              <Clock className="w-2.5 h-2.5 text-soft" />
-                              <span className="text-soft">سررسید:</span>
-                              <span className="text-strong fa-num">{bill.dueDateJalali}</span>
-                            </div>
-                          )}
                         </div>
                       </AppCard>
                     </motion.div>
@@ -369,27 +352,6 @@ export function BillsScreen() {
                 value={form.paymentId}
                 onChange={(e) => setForm({ ...form, paymentId: e.target.value })}
                 placeholder="شناسه پرداخت"
-                className="w-full surface-input rounded-xl px-3 py-2.5 text-sm text-strong placeholder:text-soft focus:outline-none focus:ring-2 focus:ring-violet-500/40 fa-num"
-              />
-            </Field>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="مبلغ (ریال)">
-              <input
-                type="text"
-                inputMode="numeric"
-                value={form.amount}
-                onChange={(e) => setForm({ ...form, amount: e.target.value })}
-                placeholder="مبلغ"
-                className="w-full surface-input rounded-xl px-3 py-2.5 text-sm text-strong placeholder:text-soft focus:outline-none focus:ring-2 focus:ring-violet-500/40 fa-num"
-              />
-            </Field>
-            <Field label="تاریخ سررسید (شمسی)">
-              <input
-                type="text"
-                value={form.dueDateJalali}
-                onChange={(e) => setForm({ ...form, dueDateJalali: e.target.value })}
-                placeholder="۱۴۰۵/۰۱/۱۵"
                 className="w-full surface-input rounded-xl px-3 py-2.5 text-sm text-strong placeholder:text-soft focus:outline-none focus:ring-2 focus:ring-violet-500/40 fa-num"
               />
             </Field>

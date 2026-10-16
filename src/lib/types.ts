@@ -46,7 +46,6 @@ export interface BankCard {
   cvv2: string;
   expiryMonth: string; // MM
   expiryYear: string; // YY (Jalali or Gregorian)
-  cardType: "debit" | "credit";
   cardHolderName: string;
   cardImageDataUrl?: string;
   notes?: string;
@@ -62,8 +61,6 @@ export interface Bill {
   provider: string;
   billId: string; // شناسه قبض
   paymentId: string; // شناسه پرداخت
-  amount: string;
-  dueDateJalali?: string;
   isPaid: boolean;
   imageDataUrl?: string;
   notes?: string;
@@ -86,14 +83,31 @@ export interface DocumentItem {
   personId: string;
   title: string;
   category: DocumentCategory;
-  documentType?: string; // مثلاً "کارت ملی"، "شناسنامه"، "گذرنامه"
+  documentType?: string;
   documentNumber: string;
   issueDateJalali?: string;
   expiryDateJalali?: string;
   physicalLocation?: string;
   notes?: string;
-  imageUrls: string[]; // چند تصویر برای مدارک چندصفحه‌ای
+  imageUrls: string[];
   createdAt: string;
+  // ── Vehicle-specific fields ──
+  licenseNumber?: string; // شماره گواهینامه
+  licenseSerial?: string; // شماره سریال گواهینامه
+  licenseIssueDate?: string; // تاریخ صدور گواهینامه
+  vinNumber?: string; // شماره VIN خودرو
+  plateNumber?: string; // شماره پلاک
+  cardSerial?: string; // شماره سریال بارکد کارت ماشین
+  serialNumber?: string; // شماره مسلسل
+  chassisNumber?: string; // شماره شاسی
+  engineNumber?: string; // شماره موتور
+  // ── Property-specific fields ──
+  contractNumber?: string; // شماره قولنامه
+  trackingCode?: string; // کد رهگیری
+  // ── Insurance-specific fields ──
+  insuranceNumber?: string; // شماره بیمه
+  insuranceType?: string; // نوع بیمه (تامین اجتماعی، ماشین، درمانی)
+  insuranceDate?: string; // تاریخ بیمه
 }
 
 // ── Credentials ───────────────────────────────────────

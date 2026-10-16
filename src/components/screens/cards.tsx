@@ -42,7 +42,6 @@ export function CardsScreen() {
     cvv2: "",
     expiryMonth: "",
     expiryYear: "",
-    cardType: "debit" as "debit" | "credit",
     cardHolderName: "",
     imageUrls: [] as string[],
     notes: "",
@@ -58,7 +57,6 @@ export function CardsScreen() {
       cvv2: "",
       expiryMonth: "",
       expiryYear: "",
-      cardType: "debit",
       cardHolderName: "",
       imageUrls: [],
       notes: "",
@@ -78,7 +76,6 @@ export function CardsScreen() {
         cvv2: "",
         expiryMonth: "",
         expiryYear: "",
-        cardType: "debit" as "debit" | "credit",
         cardHolderName: "",
         imageUrls: [],
         notes: "",
@@ -100,7 +97,6 @@ export function CardsScreen() {
       cvv2: card.cvv2,
       expiryMonth: card.expiryMonth,
       expiryYear: card.expiryYear,
-      cardType: card.cardType,
       cardHolderName: card.cardHolderName,
       imageUrls: card.cardImageDataUrl ? [card.cardImageDataUrl] : [],
       notes: card.notes ?? "",
@@ -120,7 +116,6 @@ export function CardsScreen() {
       cvv2: form.cvv2.replace(/\D/g, "") || "—",
       expiryMonth: form.expiryMonth,
       expiryYear: form.expiryYear,
-      cardType: form.cardType,
       cardHolderName: form.cardHolderName.trim() || "—",
       cardImageDataUrl: form.imageUrls[0],
       notes: form.notes || undefined,
@@ -190,7 +185,7 @@ export function CardsScreen() {
                       <div className="relative z-10">
                         <div className="flex items-center justify-between mb-3">
                           <span className="text-xs font-bold opacity-90">{card.bankName}</span>
-                          <span className="text-[9px] opacity-70">{card.cardType === "debit" ? "debit" : "credit"}</span>
+                          <span className="text-[9px] opacity-70">بانک</span>
                         </div>
                         <div className="flex items-center gap-1.5 mb-2">
                           <span className="text-base font-mono tracking-widest fa-num" dir="ltr">
@@ -304,18 +299,12 @@ export function CardsScreen() {
           <Field label="شماره شبا (IR...)">
             <input type="text" dir="ltr" value={form.shiba} onChange={(e) => setForm({ ...form, shiba: e.target.value })} placeholder="IR000000000000000000000000" className="w-full surface-input rounded-xl px-3 py-2.5 text-sm text-strong placeholder:text-soft focus:outline-none focus:ring-2 focus:ring-violet-500/40 text-left" />
           </Field>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <Field label="ماه انقضا">
               <input type="text" inputMode="numeric" dir="ltr" value={form.expiryMonth} onChange={(e) => { let v = e.target.value.replace(/\D/g, ""); if (v.length > 2) v = v.slice(0, 2); setForm({ ...form, expiryMonth: v }); }} placeholder="12" maxLength={2} className="w-full surface-input rounded-xl px-3 py-2.5 text-sm text-strong placeholder:text-soft focus:outline-none focus:ring-2 focus:ring-violet-500/40 text-center fa-num" />
             </Field>
             <Field label="سال انقضا">
               <input type="text" inputMode="numeric" dir="ltr" value={form.expiryYear} onChange={(e) => { let v = e.target.value.replace(/\D/g, ""); if (v.length > 2) v = v.slice(0, 2); setForm({ ...form, expiryYear: v }); }} placeholder="27" maxLength={2} className="w-full surface-input rounded-xl px-3 py-2.5 text-sm text-strong placeholder:text-soft focus:outline-none focus:ring-2 focus:ring-violet-500/40 text-center fa-num" />
-            </Field>
-            <Field label="نوع کارت">
-              <select value={form.cardType} onChange={(e) => setForm({ ...form, cardType: e.target.value as "debit" | "credit" })} className="w-full surface-input rounded-xl px-3 py-2.5 text-sm text-strong focus:outline-none focus:ring-2 focus:ring-violet-500/40">
-                <option value="debit">debit</option>
-                <option value="credit">credit</option>
-              </select>
             </Field>
           </div>
           <MultiImageUploader images={form.imageUrls} onChange={(imgs) => setForm({ ...form, imageUrls: imgs })} label="عکس کارت" maxImages={2} />
