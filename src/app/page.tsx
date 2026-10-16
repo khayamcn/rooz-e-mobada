@@ -4,18 +4,38 @@ import { PhoneFrame } from "@/components/phone-frame";
 import { BottomNav } from "@/components/bottom-nav";
 import { useApp } from "@/lib/store";
 import { TokenActivation } from "@/components/activation/token-activation";
+import { Onboarding } from "@/components/onboarding/onboarding";
 import { HomeScreen } from "@/components/screens/home";
 import { PeopleScreen } from "@/components/screens/people";
 import { DocumentsScreen } from "@/components/screens/documents";
+import { CardsScreen } from "@/components/screens/cards";
 import { BillsScreen } from "@/components/screens/bills";
+import { PasswordsScreen } from "@/components/screens/passwords";
 import { SettingsScreen } from "@/components/screens/settings";
 import { useState } from "react";
 import type { ScreenId } from "@/lib/types";
 
 export default function Page() {
   const activated = useApp((s) => s.activated);
+  const hasSeenOnboarding = useApp((s) => s.hasSeenOnboarding);
+  const completeOnboarding = useApp((s) => s.completeOnboarding);
   const [activeScreen, setActiveScreen] = useState<ScreenId>("home");
 
+  // Show onboarding first (before activation) on first launch
+  if (!hasSeenOnboarding) {
+    return (
+      <main className="min-h-screen w-full flex flex-col items-center justify-center md:py-6 px-0 md:px-6 bg-page">
+        <div className="hidden md:flex flex-col items-center gap-2 mb-6 text-center">
+          <h1 className="text-2xl font-bold text-strong">روز مبادا</h1>
+        </div>
+        <PhoneFrame>
+          <Onboarding onComplete={completeOnboarding} />
+        </PhoneFrame>
+      </main>
+    );
+  }
+
+  // Show activation screen if not activated
   if (!activated) {
     return (
       <main className="min-h-screen w-full flex flex-col items-center justify-center md:py-6 px-0 md:px-6 bg-page">
@@ -46,7 +66,9 @@ export default function Page() {
             {activeScreen === "home" && <HomeScreen onNavigate={setActiveScreen} />}
             {activeScreen === "people" && <PeopleScreen />}
             {activeScreen === "documents" && <DocumentsScreen />}
+            {activeScreen === "cards" && <CardsScreen />}
             {activeScreen === "bills" && <BillsScreen />}
+            {activeScreen === "passwords" && <PasswordsScreen />}
             {activeScreen === "settings" && <SettingsScreen onNavigate={setActiveScreen} />}
           </div>
           <BottomNav active={activeScreen} onChange={setActiveScreen} />

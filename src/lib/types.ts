@@ -134,4 +134,4 @@ export interface EmergencyGuide {
 }
 
 // ── App State ─────────────────────────────────────────
-export type ScreenId = "home" | "people" | "documents" | "bills" | "settings";
+export type ScreenId = "home" | "people" | "documents" | "cards" | "bills" | "passwords" | "settings";

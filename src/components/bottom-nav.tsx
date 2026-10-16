@@ -1,6 +1,6 @@
 "use client";
 
-import { Home, FileText, Receipt, Users, Settings } from "lucide-react";
+import { Home, FileText, Receipt, Users, Settings, CreditCard, KeyRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ScreenId } from "@/lib/types";
 
@@ -13,14 +13,16 @@ const NAV_ITEMS: { id: ScreenId; label: string; icon: typeof Home }[] = [
   { id: "home", label: "خانه", icon: Home },
   { id: "people", label: "افراد", icon: Users },
   { id: "documents", label: "مدارک", icon: FileText },
+  { id: "cards", label: "کارت‌ها", icon: CreditCard },
   { id: "bills", label: "قبوض", icon: Receipt },
+  { id: "passwords", label: "رمزها", icon: KeyRound },
   { id: "settings", label: "تنظیمات", icon: Settings },
 ];
 
 export function BottomNav({ active, onChange }: BottomNavProps) {
   return (
     <nav aria-label="ناوبری اصلی" className="shrink-0 surface-nav border-t">
-      <ul className="grid grid-cols-5 h-16">
+      <ul className="grid grid-cols-7 h-16">
         {NAV_ITEMS.map((item) => {
           const isActive = active === item.id;
           const Icon = item.icon;
@@ -39,7 +41,7 @@ export function BottomNav({ active, onChange }: BottomNavProps) {
                 <span
                   className={cn(
                     "absolute top-1 h-1 rounded-full transition-all",
-                    isActive ? "w-8 brand-gradient" : "w-0 bg-transparent"
+                    isActive ? "w-6 brand-gradient" : "w-0 bg-transparent"
                   )}
                 />
                 <Icon
@@ -48,7 +50,7 @@ export function BottomNav({ active, onChange }: BottomNavProps) {
                 />
                 <span
                   className={cn(
-                    "text-[10px] leading-none",
+                    "text-[9px] leading-none",
                     isActive ? "font-bold" : "font-medium"
                   )}
                 >

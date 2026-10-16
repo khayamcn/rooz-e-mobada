@@ -16,6 +16,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import { PersonProfile } from "./person-profile";
 import type { Person } from "@/lib/types";
 
+const BLOOD_TYPES = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
+const RELATIONS = ["پدر", "مادر", "همسر", "پسر", "دختر", "برادر", "خواهر", "خودم", "سایر"];
+
 export function PeopleScreen() {
   const people = useApp((s) => s.people);
   const addPerson = useApp((s) => s.addPerson);
@@ -32,6 +35,7 @@ export function PeopleScreen() {
   const [form, setForm] = useState({
     fullName: "",
     relation: "",
+    customRelation: "",
     phone: "",
     nationalId: "",
     birthDateJalali: "",
@@ -39,14 +43,26 @@ export function PeopleScreen() {
     notes: "",
     avatarDataUrl: "",
   });
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Listen for FAB-triggered add
+  const resetForm = () => {
+    setForm({
+      fullName: "",
+      relation: "",
+      customRelation: "",
+      phone: "",
+      nationalId: "",
+      birthDateJalali: "",
+      bloodType: "",
+      notes: "",
+      avatarDataUrl: "",
+    });
+    setErrors({});
+  };
+
   useEffect(() => {
     const handler = () => {
-      setForm({
-        fullName: "", relation: "", phone: "", nationalId: "",
-        birthDateJalali: "", bloodType: "", notes: "", avatarDataUrl: "",
-      });
+      resetForm();
       setEditingId(null);
       setSheetOpen(true);
     };
@@ -55,18 +71,18 @@ export function PeopleScreen() {
   }, []);
 
   const openAdd = () => {
-    setForm({
-      fullName: "", relation: "", phone: "", nationalId: "",
-      birthDateJalali: "", bloodType: "", notes: "", avatarDataUrl: "",
-    });
+    resetForm();
     setEditingId(null);
     setSheetOpen(true);
   };
 
   const openEdit = (person: Person) => {
+    // Check if relation is a standard one
+    const isStandard = RELATIONS.includes(person.relation);
     setForm({
       fullName: person.fullName,
-      relation: person.relation,
+      relation: isStandard ? person.relation : "سایر",
+      customRelation: isStandard ? "" : person.relation,
       phone: person.phone,
       nationalId: person.nationalId ?? "",
       birthDateJalali: person.birthDateJalali ?? "",
@@ -74,17 +90,51 @@ export function PeopleScreen() {
       notes: person.notes ?? "",
       avatarDataUrl: person.avatarDataUrl ?? "",
     });
+    setErrors({});
     setEditingId(person.id);
     setSheetOpen(true);
   };
 
+  // Auto-normalize phone: convert +98 to 0, remove spaces, keep Latin digits
+  const normalizePhone = (input: string): string => {
+    let cleaned = input.replace(/[^\d+]/g, ""); // keep digits and +
+    if (cleaned.startsWith("+98")) {
+      cleaned = "0" + cleaned.slice(3);
+    } else if (cleaned.startsWith("0098")) {
+      cleaned = "0" + cleaned.slice(4);
+    } else if (cleaned.startsWith("98") && cleaned.length === 12) {
+      cleaned = "0" + cleaned.slice(2);
+    }
+    return cleaned;
+  };
+
+  const validate = (): boolean => {
+    const next: Record<string, string> = {};
+    if (!form.fullName.trim()) next.fullName = "نام الزامی است";
+    if (form.phone) {
+      const normalized = normalizePhone(form.phone);
+      if (!/^09\d{9}$/.test(normalized)) {
+        next.phone = "شماره موبایل باید ۱۱ رقم و با ۰۹ شروع شود";
+      }
+    }
+    if (form.nationalId && form.nationalId.replace(/\D/g, "").length !== 10) {
+      next.nationalId = "کد ملی باید ۱۰ رقم باشد";
+    }
+    if (form.relation === "سایر" && !form.customRelation.trim()) {
+      next.customRelation = "نسبت را وارد کنید";
+    }
+    setErrors(next);
+    return Object.keys(next).length === 0;
+  };
+
   const handleSave = () => {
-    if (!form.fullName.trim()) return;
+    if (!validate()) return;
+    const finalRelation = form.relation === "سایر" ? form.customRelation.trim() : form.relation;
     const data = {
       fullName: form.fullName.trim(),
-      relation: form.relation.trim() || "—",
-      phone: form.phone,
-      nationalId: form.nationalId || undefined,
+      relation: finalRelation || "—",
+      phone: normalizePhone(form.phone),
+      nationalId: form.nationalId.replace(/\D/g, "") || undefined,
       birthDateJalali: form.birthDateJalali || undefined,
       bloodType: form.bloodType || undefined,
       notes: form.notes || undefined,
@@ -93,10 +143,14 @@ export function PeopleScreen() {
     };
     if (editingId) {
       updatePerson(editingId, data);
+      // Update selectedPerson if it's the one being edited
+      if (selectedPerson && selectedPerson.id === editingId) {
+        setSelectedPerson({ ...selectedPerson, ...data });
+      }
     } else {
       addPerson(data);
     }
-    setSheetOpen(false);
+    setSheetOpen(false); // Close the sheet on save
   };
 
   // Show person profile if selected
@@ -105,9 +159,7 @@ export function PeopleScreen() {
       <PersonProfile
         person={selectedPerson}
         onBack={() => setSelectedPerson(null)}
-        onEdit={() => {
-          openEdit(selectedPerson);
-        }}
+        onEdit={() => openEdit(selectedPerson)}
       />
     );
   }
@@ -233,8 +285,7 @@ export function PeopleScreen() {
             <button
               type="button"
               onClick={handleSave}
-              disabled={!form.fullName.trim()}
-              className="flex-1 py-2.5 rounded-xl brand-gradient text-white text-sm font-bold shadow-glow disabled:opacity-40"
+              className="flex-1 py-2.5 rounded-xl brand-gradient text-white text-sm font-bold shadow-glow"
             >
               ذخیره
             </button>
@@ -256,7 +307,9 @@ export function PeopleScreen() {
             onChange={(img: UploadedImage | null) => setForm({ ...form, avatarDataUrl: img?.dataUrl ?? "" })}
             label="عکس پروفایل"
           />
-          <Field label="نام کامل">
+
+          {/* Full Name */}
+          <Field label="نام کامل" error={errors.fullName}>
             <input
               type="text"
               value={form.fullName}
@@ -265,36 +318,79 @@ export function PeopleScreen() {
               className="w-full surface-input rounded-xl px-3 py-2.5 text-sm text-strong placeholder:text-soft focus:outline-none focus:ring-2 focus:ring-violet-500/40"
             />
           </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="نسبت">
+
+          {/* Relation dropdown */}
+          <Field label="نسبت" error={errors.relation}>
+            <select
+              value={form.relation}
+              onChange={(e) => setForm({ ...form, relation: e.target.value })}
+              className="w-full surface-input rounded-xl px-3 py-2.5 text-sm text-strong focus:outline-none focus:ring-2 focus:ring-violet-500/40"
+            >
+              <option value="">انتخاب نسبت...</option>
+              {RELATIONS.map((r) => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+            </select>
+          </Field>
+
+          {/* Custom relation input if "سایر" selected */}
+          {form.relation === "سایر" && (
+            <Field label="نسبت دلخواه" error={errors.customRelation}>
               <input
                 type="text"
-                value={form.relation}
-                onChange={(e) => setForm({ ...form, relation: e.target.value })}
-                placeholder="مثلاً: همسر"
+                value={form.customRelation}
+                onChange={(e) => setForm({ ...form, customRelation: e.target.value })}
+                placeholder="مثلاً: دایی، عمه..."
                 className="w-full surface-input rounded-xl px-3 py-2.5 text-sm text-strong placeholder:text-soft focus:outline-none focus:ring-2 focus:ring-violet-500/40"
               />
             </Field>
-            <Field label="شماره موبایل">
-              <input
-                type="tel"
-                value={form.phone}
-                onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                placeholder="0912..."
-                className="w-full surface-input rounded-xl px-3 py-2.5 text-sm text-strong placeholder:text-soft focus:outline-none focus:ring-2 focus:ring-violet-500/40 fa-num"
-              />
-            </Field>
-          </div>
+          )}
+
+          {/* Phone with Latin digits */}
+          <Field label="شماره موبایل" error={errors.phone}>
+            <input
+              type="tel"
+              inputMode="numeric"
+              dir="ltr"
+              value={form.phone}
+              onChange={(e) => {
+                // Keep only digits and +, auto-normalize
+                let val = e.target.value.replace(/[^\d+]/g, "");
+                if (val.startsWith("+98")) {
+                  val = "0" + val.slice(3);
+                } else if (val.startsWith("0098")) {
+                  val = "0" + val.slice(4);
+                }
+                // Limit to 11 digits
+                if (val.length > 11) val = val.slice(0, 11);
+                setForm({ ...form, phone: val });
+              }}
+              placeholder="0912xxxxxxx"
+              maxLength={11}
+              className="w-full surface-input rounded-xl px-3 py-2.5 text-sm text-strong placeholder:text-soft focus:outline-none focus:ring-2 focus:ring-violet-500/40 text-left"
+            />
+            <p className="text-[10px] text-soft mt-1">+98 به‌صورت خودکار به ۰ تبدیل می‌شود</p>
+          </Field>
+
+          {/* National ID */}
+          <Field label="کد ملی" error={errors.nationalId}>
+            <input
+              type="text"
+              inputMode="numeric"
+              dir="ltr"
+              value={form.nationalId}
+              onChange={(e) => {
+                let val = e.target.value.replace(/\D/g, "");
+                if (val.length > 10) val = val.slice(0, 10);
+                setForm({ ...form, nationalId: val });
+              }}
+              placeholder="0012345678"
+              maxLength={10}
+              className="w-full surface-input rounded-xl px-3 py-2.5 text-sm text-strong placeholder:text-soft focus:outline-none focus:ring-2 focus:ring-violet-500/40 text-left fa-num"
+            />
+          </Field>
+
           <div className="grid grid-cols-2 gap-3">
-            <Field label="کد ملی">
-              <input
-                type="text"
-                value={form.nationalId}
-                onChange={(e) => setForm({ ...form, nationalId: e.target.value })}
-                placeholder="۱۰ رقم"
-                className="w-full surface-input rounded-xl px-3 py-2.5 text-sm text-strong placeholder:text-soft focus:outline-none focus:ring-2 focus:ring-violet-500/40 fa-num"
-              />
-            </Field>
             <Field label="تاریخ تولد (شمسی)">
               <input
                 type="text"
@@ -304,18 +400,22 @@ export function PeopleScreen() {
                 className="w-full surface-input rounded-xl px-3 py-2.5 text-sm text-strong placeholder:text-soft focus:outline-none focus:ring-2 focus:ring-violet-500/40 fa-num"
               />
             </Field>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
+
+            {/* Blood Type dropdown */}
             <Field label="گروه خونی">
-              <input
-                type="text"
+              <select
                 value={form.bloodType}
                 onChange={(e) => setForm({ ...form, bloodType: e.target.value })}
-                placeholder="مثلاً: A+"
-                className="w-full surface-input rounded-xl px-3 py-2.5 text-sm text-strong placeholder:text-soft focus:outline-none focus:ring-2 focus:ring-violet-500/40"
-              />
+                className="w-full surface-input rounded-xl px-3 py-2.5 text-sm text-strong focus:outline-none focus:ring-2 focus:ring-violet-500/40"
+              >
+                <option value="">انتخاب...</option>
+                {BLOOD_TYPES.map((bt) => (
+                  <option key={bt} value={bt}>{bt}</option>
+                ))}
+              </select>
             </Field>
           </div>
+
           <Field label="یادداشت">
             <textarea
               value={form.notes}
@@ -377,11 +477,12 @@ export function PeopleScreen() {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children, error }: { label: string; children: React.ReactNode; error?: string }) {
   return (
     <div>
       <label className="block text-xs font-semibold text-soft mb-1.5">{label}</label>
       {children}
+      {error && <p className="text-[10px] text-red-500 mt-1">{error}</p>}
     </div>
   );
 }

@@ -42,8 +42,10 @@ interface AppState {
 
   // ── Token activation ─────────────────────────────────
   activated: boolean;
+  hasSeenOnboarding: boolean;
   activate: (token: string) => boolean;
   deactivate: () => void;
+  completeOnboarding: () => void;
 
   // ── Theme + Color ────────────────────────────────────
   theme: Theme;
@@ -165,6 +167,7 @@ export const useApp = create<AppState>()(
 
       // ── Token activation ──────────────────────────────
       activated: false,
+      hasSeenOnboarding: false,
       activate: (token: string) => {
         const trimmed = token.trim();
         if (VALID_TOKENS.includes(trimmed)) {
@@ -174,6 +177,7 @@ export const useApp = create<AppState>()(
         return false;
       },
       deactivate: () => set({ activated: false }),
+      completeOnboarding: () => set({ hasSeenOnboarding: true }),
 
       // ── Theme + Color ──────────────────────────────────
       theme: "dark",
@@ -358,6 +362,7 @@ export const useApp = create<AppState>()(
       name: "rooz-e-mobada-v3",
       partialize: (s) => ({
         activated: s.activated,
+        hasSeenOnboarding: s.hasSeenOnboarding,
         theme: s.theme,
         colorTheme: s.colorTheme,
         people: s.people,
