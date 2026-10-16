@@ -7,6 +7,7 @@ import { AppCard, SectionTitle, StatusBadge, FileAttachmentChip } from "@/compon
 import { ProfileAvatar } from "@/components/shared/profile-avatar";
 import { Sheet } from "@/components/shared/sheet";
 import { ImageUploader, type UploadedImage } from "@/components/shared/image-uploader";
+import { CopyChip } from "@/components/shared/copyable-field";
 import { useApp, useActiveMember, useDocumentsForActiveMember, useCredentialsForActiveMember, useVisibleVehicles } from "@/lib/store";
 import { toPersian } from "@/lib/persian";
 import type { DocCategory, DocumentItem, MemberCategory, CredentialItem } from "@/lib/types";
@@ -316,18 +317,20 @@ export function DocumentsScreen() {
           <SectionTitle title="اطلاعات فردی" icon={<Info className="w-4 h-4" />} />
           <AppCard className="!p-4">
             <div className="grid grid-cols-2 gap-3 text-xs">
-              <Field label="کد ملی" value={activeMember.nationalId || "—"} editable onSave={(v) => updatePersonalInfo(activeMember.id, { nationalId: v })} />
-              <Field label="گروه خونی" value={memberInfo.bloodType || "—"} editable onSave={(v) => updatePersonalInfo(activeMember.id, { bloodType: v })} />
-              <Field label="تاریخ تولد (شمسی)" value={memberInfo.birthDateJalali || "—"} editable onSave={(v) => updatePersonalInfo(activeMember.id, { birthDateJalali: v })} />
-              <Field label="آدرس" value={memberInfo.address || "—"} editable onSave={(v) => updatePersonalInfo(activeMember.id, { address: v })} />
+              <Field label="کد ملی" value={activeMember.nationalId || ""} copyable editable onSave={(v) => updatePersonalInfo(activeMember.id, { nationalId: v })} />
+              <Field label="گروه خونی" value={memberInfo.bloodType || ""} editable onSave={(v) => updatePersonalInfo(activeMember.id, { bloodType: v })} />
+              <Field label="تاریخ تولد (شمسی)" value={memberInfo.birthDateJalali || ""} copyable editable onSave={(v) => updatePersonalInfo(activeMember.id, { birthDateJalali: v })} />
+              <Field label="شماره موبایل" value={activeMember.phone || ""} copyable dir="ltr" />
+              <Field label="آدرس" value={memberInfo.address || ""} editable onSave={(v) => updatePersonalInfo(activeMember.id, { address: v })} />
             </div>
           </AppCard>
           <AppCard className="!p-4 mt-2.5">
             <p className="text-[11px] font-bold text-violet-500 dark:text-violet-300 mb-2">یادداشت‌های پزشکی</p>
             <div className="space-y-2">
-              <Field label="حساسیت‌ها" value={memberInfo.allergies || "—"} editable onSave={(v) => updatePersonalInfo(activeMember.id, { allergies: v })} />
-              <Field label="بیماری‌های مزمن" value={memberInfo.chronicDiseases || "—"} editable onSave={(v) => updatePersonalInfo(activeMember.id, { chronicDiseases: v })} />
-              <Field label="داروهای مصرفی" value={memberInfo.medications || "—"} editable onSave={(v) => updatePersonalInfo(activeMember.id, { medications: v })} />
+              <Field label="حساسیت‌ها" value={memberInfo.allergies || ""} copyable editable onSave={(v) => updatePersonalInfo(activeMember.id, { allergies: v })} />
+              <Field label="بیماری‌های مزمن" value={memberInfo.chronicDiseases || ""} copyable editable onSave={(v) => updatePersonalInfo(activeMember.id, { chronicDiseases: v })} />
+              <Field label="داروهای مصرفی" value={memberInfo.medications || ""} copyable editable onSave={(v) => updatePersonalInfo(activeMember.id, { medications: v })} />
+              <Field label="یادداشت اضطراری" value={memberInfo.emergencyNote || ""} copyable editable onSave={(v) => updatePersonalInfo(activeMember.id, { emergencyNote: v })} />
             </div>
           </AppCard>
         </section>
@@ -376,7 +379,13 @@ export function DocumentsScreen() {
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] mb-2">
-                    <div><span className="text-soft">شماره: </span><span className="text-strong font-medium fa-num">{d.documentNumber}</span></div>
+                    <div className="flex items-center gap-1 min-w-0">
+                      <span className="text-soft shrink-0">شماره: </span>
+                      <span className="text-strong font-medium fa-num truncate">{d.documentNumber}</span>
+                      {d.documentNumber && d.documentNumber !== "—" && (
+                        <CopyChip value={d.documentNumber} label="شماره سند" />
+                      )}
+                    </div>
                     {d.expiryJalali && (
                       <div>
                         <span className="text-soft">انقضا: </span>
@@ -384,6 +393,20 @@ export function DocumentsScreen() {
                       </div>
                     )}
                   </div>
+                  {d.notes && (
+                    <div className="flex items-center gap-1 mb-2 text-[11px] text-soft">
+                      <span>📝</span>
+                      <span className="truncate flex-1">{d.notes}</span>
+                      <CopyChip value={d.notes} label="یادداشت" />
+                    </div>
+                  )}
+                  {d.physicalLocation && (
+                    <div className="flex items-center gap-1 mb-2 text-[11px] text-soft">
+                      <span>📍</span>
+                      <span className="truncate flex-1">{d.physicalLocation}</span>
+                      <CopyChip value={d.physicalLocation} label="محل نگهداری" />
+                    </div>
+                  )}
                   {d.imageDataUrl && <FileAttachmentChip status="cached" label="تصویر بارگذاری‌شده" />}
                 </AppCard>
               ))}
@@ -526,9 +549,10 @@ export function DocumentsScreen() {
   );
 }
 
-function Field({ label, value, editable, onSave, children }: { label: string; value?: string; editable?: boolean; onSave?: (v: string) => void; children?: React.ReactNode }) {
+function Field({ label, value, editable, onSave, children, copyable = false, dir = "rtl" }: { label: string; value?: string; editable?: boolean; onSave?: (v: string) => void; children?: React.ReactNode; copyable?: boolean; dir?: "rtl" | "ltr" }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value ?? "");
+  const [copied, setCopied] = useState(false);
   // If children are provided, render them (form input mode).
   if (children !== undefined) {
     return (
@@ -538,16 +562,31 @@ function Field({ label, value, editable, onSave, children }: { label: string; va
       </div>
     );
   }
+  const handleCopy = () => {
+    if (!value) return;
+    try {
+      navigator.clipboard?.writeText(value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {}
+  };
   // Otherwise render the editable display mode (for personal info).
   return (
     <div>
       <div className="flex items-center justify-between">
         <span className="text-soft">{label}</span>
-        {editable && (
-          <button type="button" onClick={() => { setDraft(value ?? ""); setEditing(true); }} className="text-violet-500 dark:text-violet-300">
-            <Pencil className="w-3 h-3" />
-          </button>
-        )}
+        <div className="flex items-center gap-1">
+          {copyable && value && (
+            <button type="button" onClick={handleCopy} className="text-violet-500 dark:text-violet-300 hover:bg-violet-500/10 rounded p-0.5 transition-colors" aria-label={`کپی ${label}`}>
+              {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+            </button>
+          )}
+          {editable && (
+            <button type="button" onClick={() => { setDraft(value ?? ""); setEditing(true); }} className="text-violet-500 dark:text-violet-300">
+              <Pencil className="w-3 h-3" />
+            </button>
+          )}
+        </div>
       </div>
       {editing ? (
         <div className="mt-1 flex gap-1">
@@ -566,7 +605,7 @@ function Field({ label, value, editable, onSave, children }: { label: string; va
           </button>
         </div>
       ) : (
-        <p className="text-strong font-medium fa-num">{value}</p>
+        <p className="text-strong font-medium fa-num" dir={dir}>{value || "—"}</p>
       )}
     </div>
   );

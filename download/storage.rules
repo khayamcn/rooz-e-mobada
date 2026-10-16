@@ -1,0 +1,48 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Helper: verify user is active family member
+    function isFamilyMember(familyId) {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid))
+        && get(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid)).data.status == 'active';
+    }
+
+    function isFamilyEditor(familyId) {
+      return isFamilyMember(familyId)
+        && get(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid)).data.role in ['admin', 'editor'];
+    }
+
+    // All family files are private — no public access
+    match /families/{familyId}/{filePath=**} {
+      // Read (download / preview) — only active members
+      // Note: for private files, additional check on file metadata is needed
+      allow read: if isFamilyMember(familyId);
+
+      // Upload — only editors/admins, with size and type limits
+      allow write: if isFamilyEditor(familyId)
+                    && request.resource.size <= 10 * 1024 * 1024  // 10MB
+                    && request.resource.contentType.matches('image/.*|application/pdf|application/msword|application/vnd.openxmlformats-officedocument.wordprocessingml.document|application/vnd.ms-excel|application/vnd.openxmlformats-officedocument.spreadsheetml.sheet|audio/.*|video/mp4|application/zip|text/plain');
+    }
+
+    // User avatars (smaller, separate path)
+    match /avatars/{uid}/{filePath=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth.uid == uid
+                    && request.resource.size <= 2 * 1024 * 1024  // 2MB avatars
+                    && request.resource.contentType.matches('image/.*');
+    }
+
+    // Backups (encrypted by user passphrase before upload)
+    match /backups/{uid}/{filePath=**} {
+      allow read, write: if request.auth.uid == uid
+                          && request.resource.size <= 50 * 1024 * 1024; // 50MB max backup
+    }
+
+    // No other access
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

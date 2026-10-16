@@ -5,6 +5,7 @@ import { Phone, Plus, BookOpen, Clock, ChevronLeft, Trash2, Pencil } from "lucid
 import { ScreenHeader } from "@/components/shared/screen-header";
 import { AppCard, SectionTitle } from "@/components/shared/ui";
 import { Sheet } from "@/components/shared/sheet";
+import { CopyChip } from "@/components/shared/copyable-field";
 import { useApp, useActiveMember, useVisibleContacts } from "@/lib/store";
 import { toPersian, persianPhone } from "@/lib/persian";
 import { motion, AnimatePresence } from "framer-motion";
@@ -303,20 +304,28 @@ export function ContactsScreen() {
                           </button>
                         </div>
                       </div>
-                      <div className="mt-1 text-[11px] text-strong font-medium fa-num">{persianPhone(c.phonePrimary)}</div>
+                      <div className="mt-1 flex items-center gap-1.5 text-[11px] text-strong font-medium fa-num">
+                        <span dir="ltr">{persianPhone(c.phonePrimary)}</span>
+                        <CopyChip value={c.phonePrimary} label="شماره تماس" />
+                      </div>
                       {c.phoneSecondary && (
-                        <div className="text-[11px] text-soft fa-num mt-0.5">{persianPhone(c.phoneSecondary)}</div>
+                        <div className="flex items-center gap-1.5 text-[11px] text-soft fa-num mt-0.5">
+                          <span dir="ltr">{persianPhone(c.phoneSecondary)}</span>
+                          <CopyChip value={c.phoneSecondary} label="شماره ثانویه" />
+                        </div>
                       )}
                       {c.address && (
                         <div className="text-[11px] text-soft mt-1 flex items-start gap-1">
                           <span>📍</span>
-                          <span>{c.address}</span>
+                          <span className="flex-1">{c.address}</span>
+                          <CopyChip value={c.address} label="آدرس" />
                         </div>
                       )}
                       {c.medicalOrUrgentNote && (
                         <div className="mt-2 bg-amber-500/10 border border-amber-500/20 rounded-lg px-2.5 py-1.5 text-[11px] text-amber-600 dark:text-amber-300 flex items-start gap-1.5">
                           <span>⚠️</span>
-                          <span>{c.medicalOrUrgentNote}</span>
+                          <span className="flex-1">{c.medicalOrUrgentNote}</span>
+                          <CopyChip value={c.medicalOrUrgentNote} label="یادداشت پزشکی" />
                         </div>
                       )}
                     </div>

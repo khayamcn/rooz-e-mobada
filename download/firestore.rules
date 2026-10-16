@@ -1,0 +1,114 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper: check if user is active member of family
+    function isFamilyMember(familyId) {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid))
+        && get(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid)).data.status == 'active';
+    }
+
+    function isFamilyAdmin(familyId) {
+      return isFamilyMember(familyId)
+        && get(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    function isFamilyEditor(familyId) {
+      return isFamilyMember(familyId)
+        && get(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid)).data.role in ['admin', 'editor'];
+    }
+
+    // ───── users ─────
+    match /users/{uid} {
+      allow read: if request.auth.uid == uid
+                  || (resource.data.familyId != null
+                      && isFamilyMember(resource.data.familyId));
+      allow create, update: if request.auth.uid == uid;
+      allow delete: if false; // Use soft-delete via Cloud Function
+    }
+
+    // ───── families ─────
+    match /families/{familyId} {
+      allow read: if isFamilyMember(familyId);
+      allow create: if request.auth != null
+                     && request.resource.data.ownerId == request.auth.uid;
+      allow update: if isFamilyAdmin(familyId);
+      allow delete: if isFamilyAdmin(familyId);
+
+      // ───── members ─────
+      match /members/{uid} {
+        allow read: if isFamilyMember(familyId);
+        allow create: if isFamilyAdmin(familyId);
+        allow update: if isFamilyAdmin(familyId)
+                       || (request.auth.uid == uid
+                           && request.resource.data.role == resource.data.role);
+        allow delete: if isFamilyAdmin(familyId) && request.auth.uid != uid;
+      }
+
+      // ───── invitations ─────
+      match /invitations/{inviteId} {
+        // Anyone authenticated can verify an invite code (code is hashed)
+        allow read: if request.auth != null;
+        allow create, update, delete: if isFamilyAdmin(familyId);
+      }
+
+      // ───── folders ─────
+      match /folders/{folderId} {
+        allow read: if isFamilyMember(familyId)
+                     && (resource.data.isPrivate == false
+                         || resource.data.ownerId == request.auth.uid
+                         || isFamilyAdmin(familyId));
+        allow create: if isFamilyEditor(familyId);
+        allow update, delete: if resource.data.ownerId == request.auth.uid
+                              || isFamilyAdmin(familyId);
+      }
+
+      // ───── files ─────
+      match /files/{fileId} {
+        allow read: if isFamilyMember(familyId)
+                     && (resource.data.isPrivate == false
+                         || resource.data.ownerId == request.auth.uid
+                         || isFamilyAdmin(familyId));
+        allow create: if isFamilyEditor(familyId)
+                       && request.resource.data.sizeBytes <= 10 * 1024 * 1024;
+        allow update, delete: if resource.data.ownerId == request.auth.uid
+                              || isFamilyAdmin(familyId);
+      }
+
+      // ───── file_permissions ─────
+      match /file_permissions/{permId} {
+        allow read: if isFamilyAdmin(familyId)
+                     || request.auth.uid == resource.data.userId;
+        allow create, update, delete: if isFamilyAdmin(familyId);
+      }
+
+      // ───── activity_log ─────
+      match /activityLog/{logId} {
+        allow read: if isFamilyMember(familyId);
+        allow create: if isFamilyMember(familyId);
+        allow update, delete: if false; // immutable
+      }
+
+      // ───── quota (server-managed) ─────
+      match /quota {
+        allow read: if isFamilyMember(familyId);
+        allow write: if false; // Only Cloud Functions update this
+      }
+
+      // ───── sync_outbox (per-user) ─────
+      match /sync_outbox/{opId} {
+        allow read, update: if request.auth.uid == resource.data.userId;
+        allow create: if request.auth.uid == request.resource.data.userId;
+        allow delete: if request.auth.uid == resource.data.userId;
+      }
+    }
+
+    // ───── audit_log (server-managed) ─────
+    match /audit_log/{logId} {
+      allow read: if request.auth != null
+                   && resource.data.actorUserId == request.auth.uid;
+      allow write: if false; // Only Cloud Functions
+    }
+  }
+}

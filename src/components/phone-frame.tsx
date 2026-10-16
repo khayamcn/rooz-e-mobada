@@ -17,9 +17,9 @@ export function PhoneFrame({ children }: { children: ReactNode }) {
   return (
     <div className="relative w-full md:w-[410px]">
       {/* Mobile: full-screen */}
-      <div className="md:hidden h-screen overflow-hidden flex flex-col">
+      <div className="md:hidden h-screen overflow-hidden flex flex-col bg-page">
         <StatusBar theme={theme} onToggle={toggleTheme} />
-        <div className="flex-1 overflow-hidden flex flex-col">{children}</div>
+        <div className="flex-1 overflow-hidden flex flex-col bg-page">{children}</div>
       </div>
 
       {/* Desktop: device mockup */}
@@ -30,10 +30,10 @@ export function PhoneFrame({ children }: { children: ReactNode }) {
           <div className="absolute -left-[3px] top-28 w-[3px] h-10 bg-slate-700 rounded-r" />
           <div className="absolute -left-[3px] top-44 w-[3px] h-16 bg-slate-700 rounded-r" />
 
-          {/* Screen */}
-          <div className="relative w-full h-full rounded-[2.25rem] overflow-hidden">
+          {/* Screen — bg-page applies the theme background to the whole app surface */}
+          <div className="relative w-full h-full rounded-[2.25rem] overflow-hidden bg-page">
             <StatusBar theme={theme} onToggle={toggleTheme} />
-            <div className="absolute inset-0 pt-9 pb-0 flex flex-col">
+            <div className="absolute inset-0 pt-9 pb-0 flex flex-col bg-page">
               {children}
             </div>
           </div>

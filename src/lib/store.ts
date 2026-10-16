@@ -68,6 +68,8 @@ interface AppState {
   // ── Auth ─────────────────────────────────────────────
   authScreen: AuthScreen;
   setAuthScreen: (s: AuthScreen) => void;
+  hasSeenOnboarding: boolean;
+  completeOnboarding: () => void;
   currentUser: AuthUser | null;
   session: AuthSession | null;
   pendingOtp: { mobile: string; code: string; expiresAt: number } | null;
@@ -183,6 +185,8 @@ export const useApp = create<AppState>()(
       // ── Auth ──────────────────────────────────────────────
       authScreen: "splash",
       setAuthScreen: (s) => set({ authScreen: s }),
+      hasSeenOnboarding: false,
+      completeOnboarding: () => set({ hasSeenOnboarding: true, authScreen: "login" }),
       currentUser: null,
       session: null,
       pendingOtp: null,
@@ -269,6 +273,11 @@ export const useApp = create<AppState>()(
           activeMemberId: ownerId,
           currentUser: { ...user, familyId: "fam-demo", role: "admin" },
           family: { ...get().family, title, inviteCode, ownerName: user.displayName },
+          session: {
+            userId: user.id,
+            token: uid("tok"),
+            expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
+          },
           authScreen: "main-app",
         });
         return inviteCode;
@@ -295,6 +304,11 @@ export const useApp = create<AppState>()(
           members: [...s.members, newMember],
           activeMemberId: user.id,
           currentUser: { ...user, familyId: "fam-demo", role: "editor" },
+          session: {
+            userId: user.id,
+            token: uid("tok"),
+            expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
+          },
           authScreen: "main-app",
         }));
         return true;
@@ -726,6 +740,7 @@ export const useApp = create<AppState>()(
         currentUser: s.currentUser,
         session: s.session,
         authScreen: s.authScreen,
+        hasSeenOnboarding: s.hasSeenOnboarding,
         members: s.members,
         activeMemberId: s.activeMemberId,
         personalInfo: s.personalInfo,

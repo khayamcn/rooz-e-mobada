@@ -215,6 +215,8 @@ export interface AuthSession {
 
 export type AuthScreen =
   | "splash"
+  | "onboarding"
+  | "login"
   | "signup"
   | "otp"
   | "create-family"

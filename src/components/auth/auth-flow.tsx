@@ -5,18 +5,39 @@ import { useApp } from "@/lib/store";
 import { motion, AnimatePresence } from "framer-motion";
 import { ShieldCheck, ChevronLeft, RefreshCw, KeyRound, Users, Plus, ArrowLeft } from "lucide-react";
 import { toPersian } from "@/lib/persian";
+import { Onboarding } from "@/components/onboarding/onboarding";
+import { LoginScreen } from "@/components/auth/login-screen";
 
 /**
- * AuthFlow — orchestrates signup → OTP → family create/join → main app.
+ * AuthFlow — orchestrates splash → onboarding → login → signup → OTP → family create/join → main app.
  */
 export function AuthFlow() {
   const authScreen = useApp((s) => s.authScreen);
   const pendingOtp = useApp((s) => s.pendingOtp);
+  const hasSeenOnboarding = useApp((s) => s.hasSeenOnboarding);
+  const completeOnboarding = useApp((s) => s.completeOnboarding);
+  const setAuthScreen = useApp((s) => s.setAuthScreen);
+
+  // Auto-route splash → onboarding/login after a brief delay
+  useEffect(() => {
+    if (authScreen === "splash") {
+      const t = setTimeout(() => {
+        setAuthScreen(hasSeenOnboarding ? "login" : "onboarding");
+      }, 1200);
+      return () => clearTimeout(t);
+    }
+  }, [authScreen, hasSeenOnboarding, setAuthScreen]);
 
   return (
     <div className="flex flex-col h-full bg-gradient-to-br from-violet-950 via-slate-900 to-violet-950 text-white">
       <AnimatePresence mode="wait">
         {authScreen === "splash" && <SplashStep key="splash" />}
+        {authScreen === "onboarding" && (
+          <Onboarding key="onboarding" onComplete={completeOnboarding} />
+        )}
+        {authScreen === "login" && (
+          <LoginScreen key="login" onBack={() => setAuthScreen("onboarding")} />
+        )}
         {authScreen === "signup" && <SignupStep key="signup" />}
         {authScreen === "otp" && <OtpStep key="otp" otp={pendingOtp} />}
         {authScreen === "create-family" && <CreateFamilyStep key="create" />}
@@ -27,7 +48,6 @@ export function AuthFlow() {
 }
 
 function SplashStep() {
-  const setAuthScreen = useApp((s) => s.setAuthScreen);
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -60,15 +80,15 @@ function SplashStep() {
         پرونده دیجیتال اضطراری خانواده — دسترسی آفلاین به مدارک، تماس‌ها،
         راهنماهای بحران و فضای ابری خصوصی.
       </motion.p>
-      <motion.button
-        initial={{ y: 20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ delay: 0.4 }}
-        onClick={() => setAuthScreen("signup")}
-        className="w-full py-3.5 rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-600 text-white font-bold shadow-glow active:scale-95 transition-transform"
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.5 }}
+        className="flex items-center gap-2 text-white/40"
       >
-        شروع استفاده
-      </motion.button>
+        <RefreshCw className="w-4 h-4 animate-spin" />
+        <span className="text-xs">در حال بارگذاری...</span>
+      </motion.div>
       <motion.p
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -100,7 +120,6 @@ function SignupStep() {
     setErrors(next);
     return Object.keys(next).length === 0;
   };
-
   const handleSubmit = () => {
     if (!validate()) return;
     signup({
@@ -119,7 +138,7 @@ function SignupStep() {
     >
       <button
         type="button"
-        onClick={() => setAuthScreen("splash")}
+        onClick={() => setAuthScreen("login")}
         className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center mb-6 hover:bg-white/20 transition-colors"
         aria-label="بازگشت"
       >
@@ -433,14 +452,28 @@ function CreateFamilyStep() {
 
 function JoinFamilyStep() {
   const joinFamily = useApp((s) => s.joinFamily);
+  const signup = useApp((s) => s.signup);
   const setAuthScreen = useApp((s) => s.setAuthScreen);
+  const currentUser = useApp((s) => s.currentUser);
   const [code, setCode] = useState("");
+  const [name, setName] = useState("");
+  const [mobile, setMobile] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const handleJoin = () => {
     if (!/^[A-Z0-9]{6}$/i.test(code)) {
       setError("کد دعوت باید ۶ کاراکتر (حروف انگلیسی و عدد) باشد");
       return;
+    }
+    // If user not yet authenticated (e.g. came directly from login),
+    // create a user record first via signup, then bypass OTP for demo.
+    if (!currentUser) {
+      if (!name.trim() || !/^09\d{9}$/.test(mobile.replace(/\s/g, ""))) {
+        setError("نام و شماره موبایل معتبر وارد کنید");
+        return;
+      }
+      signup({ mobile: mobile.replace(/\s/g, ""), displayName: name.trim() });
+      useApp.setState({ authScreen: "join-family" }); // stay on join
     }
     const ok = joinFamily(code.toUpperCase());
     if (!ok) setError("کد نامعتبر یا منقضی است");
@@ -450,11 +483,11 @@ function JoinFamilyStep() {
     <motion.div
       initial={{ x: -40, opacity: 0 }}
       animate={{ x: 0, opacity: 1 }}
-      className="flex-1 flex flex-col p-6"
+      className="flex-1 flex flex-col p-6 overflow-y-auto no-scrollbar"
     >
       <button
         type="button"
-        onClick={() => setAuthScreen("create-family")}
+        onClick={() => setAuthScreen("login")}
         className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center mb-6 hover:bg-white/20 transition-colors"
         aria-label="بازگشت"
       >
@@ -467,6 +500,33 @@ function JoinFamilyStep() {
       <p className="text-xs text-white/60 mb-6">
         کد دعوت ۶ رقمی را که از سرپرست خانواده دریافت کرده‌اید وارد کنید.
       </p>
+
+      {!currentUser && (
+        <div className="space-y-3 mb-4">
+          <div>
+            <label className="block text-xs font-semibold text-white/80 mb-1.5">نام شما</label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="مثلاً: مریم احمدی"
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-3 text-sm text-white placeholder:text-white/40 focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-500/30"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-white/80 mb-1.5">شماره موبایل</label>
+            <input
+              type="tel"
+              value={mobile}
+              onChange={(e) => setMobile(e.target.value)}
+              placeholder="0912..."
+              maxLength={11}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-3 text-sm text-white placeholder:text-white/40 focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-500/30 fa-num"
+            />
+          </div>
+        </div>
+      )}
+
       <input
         type="text"
         value={code}

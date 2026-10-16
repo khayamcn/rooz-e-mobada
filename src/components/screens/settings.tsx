@@ -3,7 +3,7 @@
 import { useState, useRef } from "react";
 import {
   Settings as SettingsIcon, Download, Upload, RefreshCw, Info, ShieldCheck,
-  LogOut, Moon, Sun, Database, FileText, ChevronLeft, ExternalLink, Bell,
+  LogOut, Moon, Sun, Database, FileText, ChevronLeft, ExternalLink, Bell, Sparkles,
 } from "lucide-react";
 import { ScreenHeader } from "@/components/shared/screen-header";
 import { AppCard, SectionTitle } from "@/components/shared/ui";
@@ -195,10 +195,46 @@ export function SettingsScreen({ onNavigate }: SettingsScreenProps) {
         </AppCard>
       </section>
 
+      {/* Google Drive connection (optional) */}
+      <section className="px-4 mb-4">
+        <SectionTitle title="اتصال اختیاری" icon={<ExternalLink className="w-4 h-4" />} />
+        <AppCard className="!p-3.5">
+          <div className="flex items-center gap-3 mb-2">
+            <span className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0">
+              <GoogleDriveIcon />
+            </span>
+            <div className="flex-1 min-w-0 text-right">
+              <p className="text-sm font-bold text-strong">اتصال Google Drive</p>
+              <p className="text-[11px] text-soft">انتخاب یا صادر فایل‌های مجاز از Drive</p>
+            </div>
+            <span className="px-2 py-1 rounded-md bg-slate-500/15 text-soft text-[10px] font-bold">
+              غیرفعال
+            </span>
+          </div>
+          <p className="text-[10px] text-soft leading-relaxed">
+            با فعال‌کردن این گزینه، می‌توانید فایل‌های مشخصی را از Drive خود انتخاب یا فایل‌های مجاز را به آن صادر کنید. برای این قابلیت از مجوزهای حداقلی و روش رسمی OAuth استفاده می‌شود. فایل‌های موجود در Drive شما لزوماً برای سایر اعضای خانواده قابل دسترسی نیستند.
+          </p>
+        </AppCard>
+      </section>
+
       {/* About */}
       <section className="px-4 mb-4">
         <SectionTitle title="درباره برنامه" icon={<Info className="w-4 h-4" />} />
         <div className="space-y-2.5">
+          <AppCard className="!p-3.5" onClick={() => {
+            useApp.setState({ hasSeenOnboarding: false, authScreen: "onboarding" });
+          }}>
+            <div className="flex items-center gap-3">
+              <span className="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center text-violet-500 shrink-0">
+                <Sparkles className="w-5 h-5" />
+              </span>
+              <div className="flex-1 min-w-0 text-right">
+                <p className="text-sm font-bold text-strong">مشاهده دوباره معرفی اولیه</p>
+                <p className="text-[11px] text-soft">پخش دوباره ۵ اسلاید معرفی</p>
+              </div>
+              <ChevronLeft className="w-4 h-4 text-soft" />
+            </div>
+          </AppCard>
           <AppCard className="!p-3.5">
             <div className="flex items-center gap-3">
               <span className="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center text-violet-500 shrink-0">
@@ -260,5 +296,16 @@ export function SettingsScreen({ onNavigate }: SettingsScreenProps) {
         </p>
       </div>
     </div>
+  );
+}
+
+function GoogleDriveIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+      <path d="M7.71 3.5L1.15 15l3.86 6.5h7.06L9.71 15l3.5-6.5H7.71z" fill="#0F9D58" />
+      <path d="M9.71 15l-2.36 6.5h7.06l3.5-6.5H9.71z" fill="#FFC107" />
+      <path d="M16.29 3.5H7.71l3.5 6.5h7.06l-1.98-6.5z" fill="#4285F4" />
+      <path d="M13.65 21.5h7.06L22.85 15l-3.5-6.5-2.35 6.5 1.95 6.5h-7.06z" fill="#EA4335" opacity="0.6" />
+    </svg>
   );
 }

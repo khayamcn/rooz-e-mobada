@@ -10,8 +10,9 @@ import { AppCard, SectionTitle } from "@/components/shared/ui";
 import { ProfileAvatar } from "@/components/shared/profile-avatar";
 import { Sheet } from "@/components/shared/sheet";
 import { ImageUploader, type UploadedImage } from "@/components/shared/image-uploader";
+import { CopyChip } from "@/components/shared/copyable-field";
 import { useApp } from "@/lib/store";
-import { toPersian } from "@/lib/persian";
+import { toPersian, persianPhone } from "@/lib/persian";
 import { motion, AnimatePresence } from "framer-motion";
 import type { ScreenId } from "@/components/bottom-nav";
 
@@ -212,6 +213,12 @@ export function FamilyScreen({ onNavigate }: FamilyScreenProps) {
                       {m.relation} · {m.lastActiveJalali}
                     </p>
                     <p className="text-[11px] text-soft mt-0.5">{ROLE_PERMISSIONS[m.role]}</p>
+                    {m.phone && (
+                      <div className="flex items-center gap-1.5 mt-1 text-[11px] text-soft fa-num">
+                        <span dir="ltr">{persianPhone(m.phone)}</span>
+                        <CopyChip value={m.phone} label="شماره موبایل" />
+                      </div>
+                    )}
                   </div>
                   <div className="flex flex-col items-end gap-1 shrink-0">
                     <span className={`px-2 py-1 rounded-lg text-[10px] font-bold ${role.tone}`}>{role.label}</span>

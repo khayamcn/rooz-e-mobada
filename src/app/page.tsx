@@ -29,7 +29,7 @@ export default function Page() {
   // Show auth flow if not logged in
   if (!currentUser || !session || authScreen !== "main-app") {
     return (
-      <main className="min-h-screen w-full flex flex-col items-center justify-center md:py-6 px-0 md:px-6">
+      <main className="min-h-screen w-full flex flex-col items-center justify-center md:py-6 px-0 md:px-6 bg-page">
         <div className="hidden md:flex flex-col items-center gap-2 mb-6 text-center">
           <h1 className="text-2xl font-bold text-strong">روز مبادا</h1>
           <p className="text-sm text-soft max-w-md">
@@ -44,7 +44,7 @@ export default function Page() {
   }
 
   return (
-    <main className="min-h-screen w-full flex flex-col items-center justify-start md:justify-center py-0 md:py-6 px-0 md:px-6">
+    <main className="min-h-screen w-full flex flex-col items-center justify-start md:justify-center py-0 md:py-6 px-0 md:px-6 bg-page">
       <div className="hidden md:flex flex-col items-center gap-2 mb-6 text-center">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full surface-card">
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse-soft" />
