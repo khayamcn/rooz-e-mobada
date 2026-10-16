@@ -90,3 +90,20 @@ prompt
 # PWA generated icons (regenerated from SVG source)
 /public/icon-192.png
 /public/icon-512.png
+
+# Capacitor Android build
+/android/
+/capacitor.config.ts
+
+# Keystore — NEVER commit (contains signing keys)
+*.keystore
+*.jks
+keystore.properties
+download/apk/*.keystore
+download/apk/*.jks
+
+# APK files (use GitHub Releases instead)
+*.apk
+download/apk/*.apk
+# But keep the README
+!download/apk/README.md
