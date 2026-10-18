@@ -18,6 +18,7 @@ import { AppCard, SectionTitle } from "@/components/shared/ui";
 import { ProfileAvatar } from "@/components/shared/profile-avatar";
 import { Sheet } from "@/components/shared/sheet";
 import { ImageUploader } from "@/components/shared/image-uploader";
+import { PersonProfile } from "@/components/screens/person-profile";
 import type { Person } from "@/lib/types";
 
 const RELATIONS = [
@@ -86,6 +87,17 @@ export function PeopleScreen() {
 
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const activePersonId = useApp((s) => s.activePersonId);
+
+  // Show full profile when an active person is set (from this screen or from home)
+  if (activePersonId) {
+    return (
+      <PersonProfile
+        personId={activePersonId}
+        onBack={() => setActivePerson(null)}
+      />
+    );
+  }
 
   const openAdd = () => {
     setForm(EMPTY_FORM);

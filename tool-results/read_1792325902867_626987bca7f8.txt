@@ -1,0 +1,901 @@
+     1→     1→"use client";
+     2→     2→
+     3→     3→import { useMemo, useState } from "react";
+     4→     4→import {
+     5→     5→  Building2,
+     6→     6→  Car,
+     7→     7→  FileText,
+     8→     8→  GraduationCap,
+     9→     9→  HeartPulse,
+    10→    10→  Home as HomeIcon,
+    11→    11→  IdCard,
+    12→    12→  Landmark,
+    13→    13→  Pencil,
+    14→    14→  Plus,
+    15→    15→  Share2,
+    16→    16→  Shield,
+    17→    17→  Trash2,
+    18→    18→  type LucideIcon,
+    19→    19→} from "lucide-react";
+    20→    20→import { useApp } from "@/lib/store";
+    21→    21→import { ScreenHeader } from "@/components/shared/screen-header";
+    22→    22→import { AppCard, SectionTitle } from "@/components/shared/ui";
+    23→    23→import { Sheet } from "@/components/shared/sheet";
+    24→    24→import { MultiImageUploader } from "@/components/shared/multi-image-uploader";
+    25→    25→import { CopyableField } from "@/components/shared/copyable-field";
+    26→    26→import type { DocumentCategory, DocumentItem } from "@/lib/types";
+    27→    27→
+    28→    28→interface CategoryDef {
+    29→    29→  id: DocumentCategory | "all";
+    30→    30→  label: string;
+    31→    31→  Icon: LucideIcon;
+    32→    32→  color: string;
+    33→    33→}
+    34→    34→
+    35→    35→const CATEGORIES: CategoryDef[] = [
+    36→    36→  { id: "all", label: "همه", Icon: FileText, color: "from-violet-400 to-purple-600" },
+    37→    37→  { id: "identity", label: "هویت", Icon: IdCard, color: "from-violet-400 to-purple-600" },
+    38→    38→  { id: "vehicle", label: "خودرو", Icon: Car, color: "from-blue-400 to-indigo-600" },
+    39→    39→  { id: "property", label: "املاک", Icon: HomeIcon, color: "from-emerald-400 to-green-600" },
+    40→    40→  { id: "education", label: "تحصیلی", Icon: GraduationCap, color: "from-cyan-400 to-teal-600" },
+    41→    41→  { id: "insurance", label: "بیمه", Icon: Shield, color: "from-amber-400 to-orange-600" },
+    42→    42→  { id: "medical", label: "پزشکی", Icon: HeartPulse, color: "from-rose-400 to-pink-600" },
+    43→    43→  { id: "contract", label: "قرارداد", Icon: Landmark, color: "from-fuchsia-400 to-purple-600" },
+    44→    44→  { id: "other", label: "سایر", Icon: Building2, color: "from-slate-400 to-slate-600" },
+    45→    45→];
+    46→    46→
+    47→    47→const INSURANCE_TYPES = [
+    48→    48→  "بیمه شخص ثالث",
+    49→    49→  "بیمه بدنه",
+    50→    50→  "بیمه عمر",
+    51→    51→  "بیمه درمان",
+    52→    52→  "بیمه آتش‌سوزی",
+    53→    53→  "بیمه مسئولیت",
+    54→    54→  "سایر",
+    55→    55→];
+    56→    56→
+    57→    57→interface FormState {
+    58→    58→  id?: string;
+    59→    59→  personId: string;
+    60→    60→  title: string;
+    61→    61→  category: DocumentCategory;
+    62→    62→  documentType: string;
+    63→    63→  documentNumber: string;
+    64→    64→  issueDateJalali: string;
+    65→    65→  expiryDateJalali: string;
+    66→    66→  physicalLocation: string;
+    67→    67→  notes: string;
+    68→    68→  imageUrls: string[];
+    69→    69→  // Vehicle
+    70→    70→  licenseNumber: string;
+    71→    71→  licenseSerial: string;
+    72→    72→  licenseIssueDate: string;
+    73→    73→  vinNumber: string;
+    74→    74→  plateNumber: string;
+    75→    75→  cardSerial: string;
+    76→    76→  serialNumber: string;
+    77→    77→  chassisNumber: string;
+    78→    78→  engineNumber: string;
+    79→    79→  // Property
+    80→    80→  contractNumber: string;
+    81→    81→  trackingCode: string;
+    82→    82→  // Insurance
+    83→    83→  insuranceNumber: string;
+    84→    84→  insuranceType: string;
+    85→    85→  insuranceDate: string;
+    86→    86→}
+    87→    87→
+    88→    88→const EMPTY_FORM: FormState = {
+    89→    89→  personId: "",
+    90→    90→  title: "",
+    91→    91→  category: "identity",
+    92→    92→  documentType: "",
+    93→    93→  documentNumber: "",
+    94→    94→  issueDateJalali: "",
+    95→    95→  expiryDateJalali: "",
+    96→    96→  physicalLocation: "",
+    97→    97→  notes: "",
+    98→    98→  imageUrls: [],
+    99→    99→  licenseNumber: "",
+   100→   100→  licenseSerial: "",
+   101→   101→  licenseIssueDate: "",
+   102→   102→  vinNumber: "",
+   103→   103→  plateNumber: "",
+   104→   104→  cardSerial: "",
+   105→   105→  serialNumber: "",
+   106→   106→  chassisNumber: "",
+   107→   107→  engineNumber: "",
+   108→   108→  contractNumber: "",
+   109→   109→  trackingCode: "",
+   110→   110→  insuranceNumber: "",
+   111→   111→  insuranceType: "",
+   112→   112→  insuranceDate: "",
+   113→   113→};
+   114→   114→
+   115→   115→export function DocumentsScreen() {
+   116→   116→  const people = useApp((s) => s.people);
+   117→   117→  const documents = useApp((s) => s.documents);
+   118→   118→  const addDocument = useApp((s) => s.addDocument);
+   119→   119→  const updateDocument = useApp((s) => s.updateDocument);
+   120→   120→  const deleteDocument = useApp((s) => s.deleteDocument);
+   121→   121→
+   122→   122→  const [activeCat, setActiveCat] = useState<DocumentCategory | "all">("all");
+   123→   123→  const [open, setOpen] = useState(false);
+   124→   124→  const [viewDoc, setViewDoc] = useState<DocumentItem | null>(null);
+   125→   125→  const [form, setForm] = useState<FormState>(EMPTY_FORM);
+   126→   126→  const [imageIdx, setImageIdx] = useState(0);
+   127→   127→
+   128→   128→  const counts = useMemo(() => {
+   129→   129→    const c: Record<string, number> = { all: documents.length };
+   130→   130→    for (const d of documents) {
+   131→   131→      c[d.category] = (c[d.category] || 0) + 1;
+   132→   132→    }
+   133→   133→    return c;
+   134→   134→  }, [documents]);
+   135→   135→
+   136→   136→  const filtered = useMemo(
+   137→   137→    () =>
+   138→   138→      activeCat === "all"
+   139→   139→        ? documents
+   140→   140→        : documents.filter((d) => d.category === activeCat),
+   141→   141→    [documents, activeCat],
+   142→   142→  );
+   143→   143→
+   144→   144→  const openAdd = () => {
+   145→   145→    setForm({
+   146→   146→      ...EMPTY_FORM,
+   147→   147→      personId: people[0]?.id || "",
+   148→   148→    });
+   149→   149→    setImageIdx(0);
+   150→   150→    setOpen(true);
+   151→   151→  };
+   152→   152→
+   153→   153→  const openEdit = (d: DocumentItem) => {
+   154→   154→    setForm({
+   155→   155→      id: d.id,
+   156→   156→      personId: d.personId,
+   157→   157→      title: d.title,
+   158→   158→      category: d.category,
+   159→   159→      documentType: d.documentType || "",
+   160→   160→      documentNumber: d.documentNumber,
+   161→   161→      issueDateJalali: d.issueDateJalali || "",
+   162→   162→      expiryDateJalali: d.expiryDateJalali || "",
+   163→   163→      physicalLocation: d.physicalLocation || "",
+   164→   164→      notes: d.notes || "",
+   165→   165→      imageUrls: d.imageUrls || [],
+   166→   166→      licenseNumber: d.licenseNumber || "",
+   167→   167→      licenseSerial: d.licenseSerial || "",
+   168→   168→      licenseIssueDate: d.licenseIssueDate || "",
+   169→   169→      vinNumber: d.vinNumber || "",
+   170→   170→      plateNumber: d.plateNumber || "",
+   171→   171→      cardSerial: d.cardSerial || "",
+   172→   172→      serialNumber: d.serialNumber || "",
+   173→   173→      chassisNumber: d.chassisNumber || "",
+   174→   174→      engineNumber: d.engineNumber || "",
+   175→   175→      contractNumber: d.contractNumber || "",
+   176→   176→      trackingCode: d.trackingCode || "",
+   177→   177→      insuranceNumber: d.insuranceNumber || "",
+   178→   178→      insuranceType: d.insuranceType || "",
+   179→   179→      insuranceDate: d.insuranceDate || "",
+   180→   180→    });
+   181→   181→    setImageIdx(0);
+   182→   182→    setOpen(true);
+   183→   183→  };
+   184→   184→
+   185→   185→  const handleSave = () => {
+   186→   186→    if (!form.title.trim()) return;
+   187→   187→    const personId = form.personId || people[0]?.id;
+   188→   188→    if (!personId) return;
+   189→   189→    const payload = {
+   190→   190→      personId,
+   191→   191→      title: form.title.trim(),
+   192→   192→      category: form.category,
+   193→   193→      documentType: form.documentType.trim() || undefined,
+   194→   194→      documentNumber: form.documentNumber.trim(),
+   195→   195→      issueDateJalali: form.issueDateJalali.trim() || undefined,
+   196→   196→      expiryDateJalali: form.expiryDateJalali.trim() || undefined,
+   197→   197→      physicalLocation: form.physicalLocation.trim() || undefined,
+   198→   198→      notes: form.notes.trim() || undefined,
+   199→   199→      imageUrls: form.imageUrls,
+   200→   200→      licenseNumber: form.licenseNumber.trim() || undefined,
+   201→   201→      licenseSerial: form.licenseSerial.trim() || undefined,
+   202→   202→      licenseIssueDate: form.licenseIssueDate.trim() || undefined,
+   203→   203→      vinNumber: form.vinNumber.trim() || undefined,
+   204→   204→      plateNumber: form.plateNumber.trim() || undefined,
+   205→   205→      cardSerial: form.cardSerial.trim() || undefined,
+   206→   206→      serialNumber: form.serialNumber.trim() || undefined,
+   207→   207→      chassisNumber: form.chassisNumber.trim() || undefined,
+   208→   208→      engineNumber: form.engineNumber.trim() || undefined,
+   209→   209→      contractNumber: form.contractNumber.trim() || undefined,
+   210→   210→      trackingCode: form.trackingCode.trim() || undefined,
+   211→   211→      insuranceNumber: form.insuranceNumber.trim() || undefined,
+   212→   212→      insuranceType: form.insuranceType.trim() || undefined,
+   213→   213→      insuranceDate: form.insuranceDate.trim() || undefined,
+   214→   214→    };
+   215→   215→    if (form.id) {
+   216→   216→      updateDocument(form.id, payload);
+   217→   217→    } else {
+   218→   218→      addDocument(payload);
+   219→   219→    }
+   220→   220→    setOpen(false);
+   221→   221→  };
+   222→   222→
+   223→   223→  const handleDelete = (id: string) => {
+   224→   224→    if (window.confirm("این سند حذف شود؟")) deleteDocument(id);
+   225→   225→  };
+   226→   226→
+   227→   227→  const personName = (id: string) =>
+   228→   228→    people.find((p) => p.id === id)?.fullName || "نامشخص";
+   229→   229→
+   230→   230→  return (
+   231→   231→    <div className="flex flex-col">
+   232→   232→      <ScreenHeader
+   233→   233→        title="اسناد"
+   234→   234→        subtitle={`${documents.length} سند ثبت شده`}
+   235→   235→        trailing={
+   236→   236→          <button
+   237→   237→            type="button"
+   238→   238→            onClick={openAdd}
+   239→   239→            className="h-10 w-10 rounded-full bg-white/20 text-white flex items-center justify-center pressable"
+   240→   240→            aria-label="افزودن سند"
+   241→   241→          >
+   242→   242→            <Plus size={20} />
+   243→   243→          </button>
+   244→   244→        }
+   245→   245→      />
+   246→   246→
+   247→   247→      <div className="flex flex-1 min-h-0">
+   248→   248→        {/* Sidebar — icon only, narrow strip */}
+   249→   249→        <aside
+   250→   250→          dir="rtl"
+   251→   251→          className="w-14 shrink-0 border-l border-violet-100/40 dark:border-white/5 overflow-y-auto no-scrollbar py-2 flex flex-col items-center gap-1"
+   252→   252→        >
+   253→   253→          {/* All button */}
+   254→   254→          <button
+   255→   255→            type="button"
+   256→   256→            onClick={() => setActiveCat("all")}
+   257→   257→            className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
+   258→   258→              activeCat === "all" ? "brand-bg-soft brand-text" : "text-soft hover:bg-violet-50/50 dark:hover:bg-white/5"
+   259→   259→            }`}
+   260→   260→            aria-label="همه"
+   261→   261→          >
+   262→   262→            <FileText size={18} />
+   263→   263→          </button>
+   264→   264→          <div className="w-8 h-px bg-violet-100/40 dark:bg-white/5 my-0.5" />
+   265→   265→          {CATEGORIES.map((c) => {
+   266→   266→            const isActive = activeCat === c.id;
+   267→   267→            return (
+   268→   268→              <button
+   269→   269→                key={c.id}
+   270→   270→                type="button"
+   271→   271→                onClick={() => setActiveCat(c.id)}
+   272→   272→                className={`relative w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
+   273→   273→                  isActive ? "brand-bg-soft" : "hover:bg-violet-50/50 dark:hover:bg-white/5"
+   274→   274→                }`}
+   275→   275→                aria-label={c.label}
+   276→   276→              >
+   277→   277→                <div
+   278→   278→                  className={`h-7 w-7 rounded-lg bg-gradient-to-br ${c.color} text-white flex items-center justify-center`}
+   279→   279→                >
+   280→   280→                  <c.Icon size={14} />
+   281→   281→                </div>
+   282→   282→                {isActive && (
+   283→   283→                  <span className="absolute right-0 top-1/2 -translate-y-1/2 w-1 h-6 rounded-full brand-gradient" />
+   284→   284→                )}
+   285→   285→                {counts[c.id] > 0 && (
+   286→   286→                  <span className="absolute -top-0.5 -left-0.5 min-w-[14px] h-3.5 px-0.5 rounded-full bg-violet-500 text-white text-[8px] font-bold flex items-center justify-center">
+   287→   287→                    {counts[c.id]}
+   288→   288→                  </span>
+   289→   289→                )}
+   290→   290→              </button>
+   291→   291→            );
+   292→   292→          })}
+   293→   293→        </aside>
+   294→   294→
+   295→   295→        {/* Document list */}
+   296→   296→        <div className="flex-1 px-3 py-3 overflow-y-auto no-scrollbar">
+   297→   297→          {filtered.length === 0 ? (
+   298→   298→            <AppCard asDiv className="!p-6 text-center">
+   299→   299→              <div className="mx-auto h-12 w-12 rounded-2xl brand-bg-soft text-brand-text flex items-center justify-center mb-3">
+   300→   300→                <FileText size={22} />
+   301→   301→              </div>
+   302→   302→              <p className="text-sm font-bold text-strong mb-1">
+   303→   303→                سندی در این دسته نیست
+   304→   304→              </p>
+   305→   305→              <button
+   306→   306→                type="button"
+   307→   307→                onClick={openAdd}
+   308→   308→                className="text-xs text-brand-text pressable"
+   309→   309→              >
+   310→   310→                افزودن سند
+   311→   311→              </button>
+   312→   312→            </AppCard>
+   313→   313→          ) : (
+   314→   314→            <div className="space-y-2">
+   315→   315→              {filtered.map((d) => {
+   316→   316→                const cat = CATEGORIES.find((c) => c.id === d.category);
+   317→   317→                return (
+   318→   318→                  <AppCard
+   319→   319→                    key={d.id}
+   320→   320→                    asDiv
+   321→   321→                    className="!p-3"
+   322→   322→                  >
+   323→   323→                    <button
+   324→   324→                      type="button"
+   325→   325→                      onClick={() => {
+   326→   326→                        setViewDoc(d);
+   327→   327→                        setImageIdx(0);
+   328→   328→                      }}
+   329→   329→                      className="w-full text-right flex items-center gap-3"
+   330→   330→                    >
+   331→   331→                      <div
+   332→   332→                        className={`h-10 w-10 rounded-lg bg-gradient-to-br ${cat?.color || "from-violet-400 to-purple-600"} text-white flex items-center justify-center shrink-0`}
+   333→   333→                      >
+   334→   334→                        {cat?.Icon ? <cat.Icon size={18} /> : <FileText size={18} />}
+   335→   335→                      </div>
+   336→   336→                      <div className="min-w-0 flex-1">
+   337→   337→                        <div className="text-sm font-bold text-strong truncate">
+   338→   338→                          {d.title}
+   339→   339→                        </div>
+   340→   340→                        <div className="text-[10px] text-soft truncate">
+   341→   341→                          {personName(d.personId)}
+   342→   342→                          {d.documentType ? ` • ${d.documentType}` : ""}
+   343→   343→                        </div>
+   344→   344→                      </div>
+   345→   345→                      {d.imageUrls.length > 0 && (
+   346→   346→                        <div className="text-[10px] text-faint shrink-0">
+   347→   347→                          {d.imageUrls.length} تصویر
+   348→   348→                        </div>
+   349→   349→                      )}
+   350→   350→                    </button>
+   351→   351→
+   352→   352→                    <div className="flex items-center gap-2 mt-3">
+   353→   353→                      <button
+   354→   354→                        type="button"
+   355→   355→                        onClick={() => openEdit(d)}
+   356→   356→                        className="flex-1 h-8 rounded-lg surface-input text-strong flex items-center justify-center gap-1.5 text-[11px] font-medium pressable"
+   357→   357→                      >
+   358→   358→                        <Pencil size={12} /> ویرایش
+   359→   359→                      </button>
+   360→   360→                      <button
+   361→   361→                        type="button"
+   362→   362→                        onClick={() => handleDelete(d.id)}
+   363→   363→                        aria-label="حذف"
+   364→   364→                        className="h-8 w-8 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-600 flex items-center justify-center pressable"
+   365→   365→                      >
+   366→   366→                        <Trash2 size={12} />
+   367→   367→                      </button>
+   368→   368→                    </div>
+   369→   369→                  </AppCard>
+   370→   370→                );
+   371→   371→              })}
+   372→   372→            </div>
+   373→   373→          )}
+   374→   374→        </div>
+   375→   375→      </div>
+   376→   376→
+   377→   377→      {/* Add/Edit sheet */}
+   378→   378→      <Sheet
+   379→   379→        open={open}
+   380→   380→        onClose={() => setOpen(false)}
+   381→   381→        title={form.id ? "ویرایش سند" : "افزودن سند"}
+   382→   382→        subtitle="اطلاعات سند را وارد کنید"
+   383→   383→        footer={
+   384→   384→          <button
+   385→   385→            type="button"
+   386→   386→            onClick={handleSave}
+   387→   387→            disabled={!form.title.trim() || !form.personId}
+   388→   388→            className="w-full h-11 rounded-full brand-gradient text-white font-bold text-sm pressable shadow-glow"
+   389→   389→          >
+   390→   390→            ذخیره
+   391→   391→          </button>
+   392→   392→        }
+   393→   393→      >
+   394→   394→        <div className="space-y-4 py-2">
+   395→   395→          <Field label="شخص">
+   396→   396→            <select
+   397→   397→              value={form.personId}
+   398→   398→              onChange={(e) =>
+   399→   399→                setForm((f) => ({ ...f, personId: e.target.value }))
+   400→   400→              }
+   401→   401→            >
+   402→   402→              <option value="">انتخاب کنید</option>
+   403→   403→              {people.map((p) => (
+   404→   404→                <option key={p.id} value={p.id}>
+   405→   405→                  {p.fullName}
+   406→   406→                </option>
+   407→   407→              ))}
+   408→   408→            </select>
+   409→   409→          </Field>
+   410→   410→
+   411→   411→          <Field label="عنوان سند">
+   412→   412→            <input
+   413→   413→              type="text"
+   414→   414→              dir="rtl"
+   415→   415→              value={form.title}
+   416→   416→              onChange={(e) =>
+   417→   417→                setForm((f) => ({ ...f, title: e.target.value }))
+   418→   418→              }
+   419→   419→              placeholder="مثلاً شناسنامه"
+   420→   420→            />
+   421→   421→          </Field>
+   422→   422→
+   423→   423→          <Field label="دسته‌بندی">
+   424→   424→            <div className="grid grid-cols-3 gap-2">
+   425→   425→              {CATEGORIES.filter((c) => c.id !== "all").map((c) => (
+   426→   426→                <button
+   427→   427→                  key={c.id}
+   428→   428→                  type="button"
+   429→   429→                  onClick={() =>
+   430→   430→                    setForm((f) => ({ ...f, category: c.id as DocumentCategory }))
+   431→   431→                  }
+   432→   432→                  className={`flex items-center gap-1.5 px-2 py-2 rounded-lg text-[11px] font-medium pressable ${
+   433→   433→                    form.category === c.id
+   434→   434→                      ? "brand-gradient text-white"
+   435→   435→                      : "surface-input text-soft"
+   436→   436→                  }`}
+   437→   437→                >
+   438→   438→                  <c.Icon size={14} />
+   439→   439→                  {c.label}
+   440→   440→                </button>
+   441→   441→              ))}
+   442→   442→            </div>
+   443→   443→          </Field>
+   444→   444→
+   445→   445→          <Field label="نوع سند">
+   446→   446→            <input
+   447→   447→              type="text"
+   448→   448→              dir="rtl"
+   449→   449→              value={form.documentType}
+   450→   450→              onChange={(e) =>
+   451→   451→                setForm((f) => ({ ...f, documentType: e.target.value }))
+   452→   452→              }
+   453→   453→              placeholder="مثلاً شناسنامه، کارت ملی، سند خانه"
+   454→   454→            />
+   455→   455→          </Field>
+   456→   456→
+   457→   457→          <Field label="شماره سند">
+   458→   458→            <input
+   459→   459→              type="text"
+   460→   460→              dir="ltr"
+   461→   461→              value={form.documentNumber}
+   462→   462→              onChange={(e) =>
+   463→   463→                setForm((f) => ({ ...f, documentNumber: e.target.value }))
+   464→   464→              }
+   465→   465→              placeholder="شماره سند"
+   466→   466→              className="text-right font-mono"
+   467→   467→            />
+   468→   468→          </Field>
+   469→   469→
+   470→   470→          <div className="grid grid-cols-2 gap-2">
+   471→   471→            <Field label="تاریخ صدور">
+   472→   472→              <input
+   473→   473→                type="text"
+   474→   474→                dir="ltr"
+   475→   475→                value={form.issueDateJalali}
+   476→   476→                onChange={(e) =>
+   477→   477→                  setForm((f) => ({ ...f, issueDateJalali: e.target.value }))
+   478→   478→                }
+   479→   479→                placeholder="1370/01/15"
+   480→   480→                className="text-right font-mono"
+   481→   481→              />
+   482→   482→            </Field>
+   483→   483→            <Field label="تاریخ انقضا">
+   484→   484→              <input
+   485→   485→                type="text"
+   486→   486→                dir="ltr"
+   487→   487→                value={form.expiryDateJalali}
+   488→   488→                onChange={(e) =>
+   489→   489→                  setForm((f) => ({ ...f, expiryDateJalali: e.target.value }))
+   490→   490→                }
+   491→   491→                placeholder="1410/01/15"
+   492→   492→                className="text-right font-mono"
+   493→   493→              />
+   494→   494→            </Field>
+   495→   495→          </div>
+   496→   496→
+   497→   497→          <Field label="محل نگهداری">
+   498→   498→            <input
+   499→   499→              type="text"
+   500→   500→              dir="rtl"
+   501→   501→              value={form.physicalLocation}
+   502→   502→              onChange={(e) =>
+   503→   503→                setForm((f) => ({ ...f, physicalLocation: e.target.value }))
+   504→   504→              }
+   505→   505→              placeholder="مثلاً گاوصندوق خانه"
+   506→   506→            />
+   507→   507→          </Field>
+   508→   508→
+   509→   509→          {/* Category-specific fields */}
+   510→   510→          {form.category === "vehicle" && (
+   511→   511→            <div className="space-y-3 p-3 rounded-card brand-bg-soft">
+   512→   512→              <p className="text-xs font-bold text-brand-text">اطلاعات خودرو</p>
+   513→   513→              <div className="grid grid-cols-2 gap-2">
+   514→   514→                <Field label="شماره کارت">
+   515→   515→                  <input
+   516→   516→                    type="text"
+   517→   517→                    dir="ltr"
+   518→   518→                    value={form.cardSerial}
+   519→   519→                    onChange={(e) =>
+   520→   520→                      setForm((f) => ({ ...f, cardSerial: e.target.value }))
+   521→   521→                    }
+   522→   522→                    className="text-right font-mono"
+   523→   523→                  />
+   524→   524→                </Field>
+   525→   525→                <Field label="سریال کارت">
+   526→   526→                  <input
+   527→   527→                    type="text"
+   528→   528→                    dir="ltr"
+   529→   529→                    value={form.serialNumber}
+   530→   530→                    onChange={(e) =>
+   531→   531→                      setForm((f) => ({ ...f, serialNumber: e.target.value }))
+   532→   532→                    }
+   533→   533→                    className="text-right font-mono"
+   534→   534→                  />
+   535→   535→                </Field>
+   536→   536→                <Field label="شماره پلاک">
+   537→   537→                  <input
+   538→   538→                    type="text"
+   539→   539→                    dir="ltr"
+   540→   540→                    value={form.plateNumber}
+   541→   541→                    onChange={(e) =>
+   542→   542→                      setForm((f) => ({ ...f, plateNumber: e.target.value }))
+   543→   543→                    }
+   544→   544→                    className="text-right font-mono"
+   545→   545→                  />
+   546→   546→                </Field>
+   547→   547→                <Field label="شماره شاسی">
+   548→   548→                  <input
+   549→   549→                    type="text"
+   550→   550→                    dir="ltr"
+   551→   551→                    value={form.chassisNumber}
+   552→   552→                    onChange={(e) =>
+   553→   553→                      setForm((f) => ({ ...f, chassisNumber: e.target.value }))
+   554→   554→                    }
+   555→   555→                    className="text-right font-mono"
+   556→   556→                  />
+   557→   557→                </Field>
+   558→   558→                <Field label="شماره موتور">
+   559→   559→                  <input
+   560→   560→                    type="text"
+   561→   561→                    dir="ltr"
+   562→   562→                    value={form.engineNumber}
+   563→   563→                    onChange={(e) =>
+   564→   564→                      setForm((f) => ({ ...f, engineNumber: e.target.value }))
+   565→   565→                    }
+   566→   566→                    className="text-right font-mono"
+   567→   567→                  />
+   568→   568→                </Field>
+   569→   569→                <Field label="شماره VIN">
+   570→   570→                  <input
+   571→   571→                    type="text"
+   572→   572→                    dir="ltr"
+   573→   573→                    value={form.vinNumber}
+   574→   574→                    onChange={(e) =>
+   575→   575→                      setForm((f) => ({ ...f, vinNumber: e.target.value }))
+   576→   576→                    }
+   577→   577→                    className="text-right font-mono"
+   578→   578→                  />
+   579→   579→                </Field>
+   580→   580→                <Field label="شماره گواهی">
+   581→   581→                  <input
+   582→   582→                    type="text"
+   583→   583→                    dir="ltr"
+   584→   584→                    value={form.licenseNumber}
+   585→   585→                    onChange={(e) =>
+   586→   586→                      setForm((f) => ({ ...f, licenseNumber: e.target.value }))
+   587→   587→                    }
+   588→   588→                    className="text-right font-mono"
+   589→   589→                  />
+   590→   590→                </Field>
+   591→   591→                <Field label="سریال گواهی">
+   592→   592→                  <input
+   593→   593→                    type="text"
+   594→   594→                    dir="ltr"
+   595→   595→                    value={form.licenseSerial}
+   596→   596→                    onChange={(e) =>
+   597→   597→                      setForm((f) => ({ ...f, licenseSerial: e.target.value }))
+   598→   598→                    }
+   599→   599→                    className="text-right font-mono"
+   600→   600→                  />
+   601→   601→                </Field>
+   602→   602→                <Field label="تاریخ صدور گواهی">
+   603→   603→                  <input
+   604→   604→                    type="text"
+   605→   605→                    dir="ltr"
+   606→   606→                    value={form.licenseIssueDate}
+   607→   607→                    onChange={(e) =>
+   608→   608→                      setForm((f) => ({ ...f, licenseIssueDate: e.target.value }))
+   609→   609→                    }
+   610→   610→                    className="text-right font-mono"
+   611→   611→                  />
+   612→   612→                </Field>
+   613→   613→              </div>
+   614→   614→            </div>
+   615→   615→          )}
+   616→   616→
+   617→   617→          {form.category === "property" && (
+   618→   618→            <div className="space-y-3 p-3 rounded-card brand-bg-soft">
+   619→   619→              <p className="text-xs font-bold text-brand-text">اطلاعات ملک</p>
+   620→   620→              <div className="grid grid-cols-2 gap-2">
+   621→   621→                <Field label="شماره قرارداد">
+   622→   622→                  <input
+   623→   623→                    type="text"
+   624→   624→                    dir="ltr"
+   625→   625→                    value={form.contractNumber}
+   626→   626→                    onChange={(e) =>
+   627→   627→                      setForm((f) => ({ ...f, contractNumber: e.target.value }))
+   628→   628→                    }
+   629→   629→                    className="text-right font-mono"
+   630→   630→                  />
+   631→   631→                </Field>
+   632→   632→                <Field label="کد رهگیری">
+   633→   633→                  <input
+   634→   634→                    type="text"
+   635→   635→                    dir="ltr"
+   636→   636→                    value={form.trackingCode}
+   637→   637→                    onChange={(e) =>
+   638→   638→                      setForm((f) => ({ ...f, trackingCode: e.target.value }))
+   639→   639→                    }
+   640→   640→                    className="text-right font-mono"
+   641→   641→                  />
+   642→   642→                </Field>
+   643→   643→              </div>
+   644→   644→            </div>
+   645→   645→          )}
+   646→   646→
+   647→   647→          {form.category === "insurance" && (
+   648→   648→            <div className="space-y-3 p-3 rounded-card brand-bg-soft">
+   649→   649→              <p className="text-xs font-bold text-brand-text">اطلاعات بیمه</p>
+   650→   650→              <div className="grid grid-cols-2 gap-2">
+   651→   651→                <Field label="شماره بیمه">
+   652→   652→                  <input
+   653→   653→                    type="text"
+   654→   654→                    dir="ltr"
+   655→   655→                    value={form.insuranceNumber}
+   656→   656→                    onChange={(e) =>
+   657→   657→                      setForm((f) => ({ ...f, insuranceNumber: e.target.value }))
+   658→   658→                    }
+   659→   659→                    className="text-right font-mono"
+   660→   660→                  />
+   661→   661→                </Field>
+   662→   662→                <Field label="تاریخ بیمه">
+   663→   663→                  <input
+   664→   664→                    type="text"
+   665→   665→                    dir="ltr"
+   666→   666→                    value={form.insuranceDate}
+   667→   667→                    onChange={(e) =>
+   668→   668→                      setForm((f) => ({ ...f, insuranceDate: e.target.value }))
+   669→   669→                    }
+   670→   670→                    className="text-right font-mono"
+   671→   671→                  />
+   672→   672→                </Field>
+   673→   673→              </div>
+   674→   674→              <Field label="نوع بیمه">
+   675→   675→                <select
+   676→   676→                  value={form.insuranceType}
+   677→   677→                  onChange={(e) =>
+   678→   678→                    setForm((f) => ({ ...f, insuranceType: e.target.value }))
+   679→   679→                  }
+   680→   680→                >
+   681→   681→                  <option value="">انتخاب کنید</option>
+   682→   682→                  {INSURANCE_TYPES.map((t) => (
+   683→   683→                    <option key={t} value={t}>
+   684→   684→                      {t}
+   685→   685→                    </option>
+   686→   686→                  ))}
+   687→   687→                </select>
+   688→   688→              </Field>
+   689→   689→            </div>
+   690→   690→          )}
+   691→   691→
+   692→   692→          <Field label="یادداشت">
+   693→   693→            <textarea
+   694→   694→              dir="rtl"
+   695→   695→              rows={3}
+   696→   696→              value={form.notes}
+   697→   697→              onChange={(e) =>
+   698→   698→                setForm((f) => ({ ...f, notes: e.target.value }))
+   699→   699→              }
+   700→   700→              placeholder="توضیحات اضافی..."
+   701→   701→            />
+   702→   702→          </Field>
+   703→   703→
+   704→   704→          <MultiImageUploader
+   705→   705→            value={form.imageUrls}
+   706→   706→            onChange={(urls) =>
+   707→   707→              setForm((f) => ({ ...f, imageUrls: urls }))
+   708→   708→            }
+   709→   709→            label="تصاویر سند"
+   710→   710→          />
+   711→   711→        </div>
+   712→   712→      </Sheet>
+   713→   713→
+   714→   714→      {/* Viewer */}
+   715→   715→      <Sheet
+   716→   716→        open={!!viewDoc}
+   717→   717→        onClose={() => setViewDoc(null)}
+   718→   718→        title={viewDoc?.title || "سند"}
+   719→   719→        subtitle={viewDoc ? personName(viewDoc.personId) : undefined}
+   720→   720→      >
+   721→   721→        {viewDoc && (
+   722→   722→          <div className="space-y-4 py-2">
+   723→   723→            {viewDoc.imageUrls.length > 0 && (
+   724→   724→              <div className="space-y-2">
+   725→   725→                <div className="relative rounded-card overflow-hidden border border-violet-200/40">
+   726→   726→                  <img
+   727→   727→                    src={viewDoc.imageUrls[imageIdx]}
+   728→   728→                    alt={`صفحه ${imageIdx + 1}`}
+   729→   729→                    className="w-full max-h-72 object-contain bg-slate-100 dark:bg-slate-800"
+   730→   730→                  />
+   731→   731→                  {/* Share button */}
+   732→   732→                  <button
+   733→   733→                    type="button"
+   734→   734→                    onClick={async () => {
+   735→   735→                      try {
+   736→   736→                        const dataUrl = viewDoc.imageUrls[imageIdx];
+   737→   737→                        const res = await fetch(dataUrl);
+   738→   738→                        const blob = await res.blob();
+   739→   739→                        const file = new File([blob], `${viewDoc.title}-page${imageIdx + 1}.jpg`, { type: "image/jpeg" });
+   740→   740→                        if (navigator.share && navigator.canShare({ files: [file] })) {
+   741→   741→                          await navigator.share({ files: [file], title: viewDoc.title });
+   742→   742→                        } else if (navigator.share) {
+   743→   743→                          await navigator.share({ title: viewDoc.title, text: viewDoc.title });
+   744→   744→                        } else {
+   745→   745→                          // Fallback: download
+   746→   746→                          const a = document.createElement("a");
+   747→   747→                          a.href = dataUrl;
+   748→   748→                          a.download = `${viewDoc.title}-page${imageIdx + 1}.jpg`;
+   749→   749→                          a.click();
+   750→   750→                        }
+   751→   751→                      } catch {}
+   752→   752→                    }}
+   753→   753→                    className="absolute top-2 left-2 w-8 h-8 rounded-full bg-black/50 backdrop-blur flex items-center justify-center text-white hover:bg-black/70 transition-colors"
+   754→   754→                    aria-label="اشتراک‌گذاری"
+   755→   755→                  >
+   756→   756→                    <Share2 className="w-4 h-4" />
+   757→   757→                  </button>
+   758→   758→                </div>
+   759→   759→                {viewDoc.imageUrls.length > 1 && (
+   760→   760→                  <div className="flex gap-2 overflow-x-auto no-scrollbar">
+   761→   761→                    {viewDoc.imageUrls.map((u, i) => (
+   762→   762→                      <button
+   763→   763→                        key={i}
+   764→   764→                        type="button"
+   765→   765→                        onClick={() => setImageIdx(i)}
+   766→   766→                        className={`h-12 w-12 rounded-lg overflow-hidden border-2 shrink-0 ${
+   767→   767→                          imageIdx === i ? "border-violet-500" : "border-transparent"
+   768→   768→                        }`}
+   769→   769→                      >
+   770→   770→                        <img src={u} alt={`thumbnail ${i + 1}`} className="h-full w-full object-cover" />
+   771→   771→                      </button>
+   772→   772→                    ))}
+   773→   773→                  </div>
+   774→   774→                )}
+   775→   775→              </div>
+   776→   776→            )}
+   777→   777→
+   778→   778→            {viewDoc.documentNumber && (
+   779→   779→              <CopyableField
+   780→   780→                label="شماره سند"
+   781→   781→                value={viewDoc.documentNumber}
+   782→   782→                dir="ltr"
+   783→   783→                mono
+   784→   784→              />
+   785→   785→            )}
+   786→   786→            {viewDoc.documentType && (
+   787→   787→              <CopyableField
+   788→   788→                label="نوع سند"
+   789→   789→                value={viewDoc.documentType}
+   790→   790→                dir="rtl"
+   791→   791→              />
+   792→   792→            )}
+   793→   793→            {viewDoc.issueDateJalali && (
+   794→   794→              <CopyableField
+   795→   795→                label="تاریخ صدور"
+   796→   796→                value={viewDoc.issueDateJalali}
+   797→   797→                dir="ltr"
+   798→   798→              />
+   799→   799→            )}
+   800→   800→            {viewDoc.expiryDateJalali && (
+   801→   801→              <CopyableField
+   802→   802→                label="تاریخ انقضا"
+   803→   803→                value={viewDoc.expiryDateJalali}
+   804→   804→                dir="ltr"
+   805→   805→              />
+   806→   806→            )}
+   807→   807→            {viewDoc.physicalLocation && (
+   808→   808→              <CopyableField
+   809→   809→                label="محل نگهداری"
+   810→   810→                value={viewDoc.physicalLocation}
+   811→   811→                dir="rtl"
+   812→   812→              />
+   813→   813→            )}
+   814→   814→
+   815→   815→            {/* Vehicle-specific in viewer */}
+   816→   816→            {viewDoc.category === "vehicle" && (
+   817→   817→              <div className="grid grid-cols-2 gap-2">
+   818→   818→                {viewDoc.licenseNumber && (
+   819→   819→                  <CopyableField label="شماره گواهی" value={viewDoc.licenseNumber} dir="ltr" mono />
+   820→   820→                )}
+   821→   821→                {viewDoc.licenseSerial && (
+   822→   822→                  <CopyableField label="سریال گواهی" value={viewDoc.licenseSerial} dir="ltr" mono />
+   823→   823→                )}
+   824→   824→                {viewDoc.plateNumber && (
+   825→   825→                  <CopyableField label="شماره پلاک" value={viewDoc.plateNumber} dir="ltr" mono />
+   826→   826→                )}
+   827→   827→                {viewDoc.chassisNumber && (
+   828→   828→                  <CopyableField label="شماره شاسی" value={viewDoc.chassisNumber} dir="ltr" mono />
+   829→   829→                )}
+   830→   830→                {viewDoc.engineNumber && (
+   831→   831→                  <CopyableField label="شماره موتور" value={viewDoc.engineNumber} dir="ltr" mono />
+   832→   832→                )}
+   833→   833→                {viewDoc.vinNumber && (
+   834→   834→                  <CopyableField label="VIN" value={viewDoc.vinNumber} dir="ltr" mono />
+   835→   835→                )}
+   836→   836→                {viewDoc.cardSerial && (
+   837→   837→                  <CopyableField label="سریال کارت" value={viewDoc.cardSerial} dir="ltr" mono />
+   838→   838→                )}
+   839→   839→                {viewDoc.serialNumber && (
+   840→   840→                  <CopyableField label="شماره کارت" value={viewDoc.serialNumber} dir="ltr" mono />
+   841→   841→                )}
+   842→   842→              </div>
+   843→   843→            )}
+   844→   844→
+   845→   845→            {/* Property-specific */}
+   846→   846→            {viewDoc.category === "property" && (
+   847→   847→              <div className="grid grid-cols-2 gap-2">
+   848→   848→                {viewDoc.contractNumber && (
+   849→   849→                  <CopyableField label="شماره قرارداد" value={viewDoc.contractNumber} dir="ltr" mono />
+   850→   850→                )}
+   851→   851→                {viewDoc.trackingCode && (
+   852→   852→                  <CopyableField label="کد رهگیری" value={viewDoc.trackingCode} dir="ltr" mono />
+   853→   853→                )}
+   854→   854→              </div>
+   855→   855→            )}
+   856→   856→
+   857→   857→            {/* Insurance-specific */}
+   858→   858→            {viewDoc.category === "insurance" && (
+   859→   859→              <div className="grid grid-cols-2 gap-2">
+   860→   860→                {viewDoc.insuranceNumber && (
+   861→   861→                  <CopyableField label="شماره بیمه" value={viewDoc.insuranceNumber} dir="ltr" mono />
+   862→   862→                )}
+   863→   863→                {viewDoc.insuranceType && (
+   864→   864→                  <CopyableField label="نوع بیمه" value={viewDoc.insuranceType} dir="rtl" />
+   865→   865→                )}
+   866→   866→                {viewDoc.insuranceDate && (
+   867→   867→                  <CopyableField label="تاریخ بیمه" value={viewDoc.insuranceDate} dir="ltr" />
+   868→   868→                )}
+   869→   869→              </div>
+   870→   870→            )}
+   871→   871→
+   872→   872→            {viewDoc.notes && (
+   873→   873→              <div className="surface-input rounded-card-sm p-3">
+   874→   874→                <div className="text-[10px] text-soft mb-0.5">یادداشت</div>
+   875→   875→                <div className="text-sm text-strong leading-relaxed">
+   876→   876→                  {viewDoc.notes}
+   877→   877→                </div>
+   878→   878→              </div>
+   879→   879→            )}
+   880→   880→          </div>
+   881→   881→        )}
+   882→   882→      </Sheet>
+   883→   883→    </div>
+   884→   884→  );
+   885→   885→}
+   886→   886→
+   887→   887→function Field({
+   888→   888→  label,
+   889→   889→  children,
+   890→   890→}: {
+   891→   891→  label: string;
+   892→   892→  children: React.ReactNode;
+   893→   893→}) {
+   894→   894→  return (
+   895→   895→    <div>
+   896→   896→      <label className="text-xs text-soft block mb-1.5">{label}</label>
+   897→   897→      {children}
+   898→   898→    </div>
+   899→   899→  );
+   900→   900→}
+   901→   901→

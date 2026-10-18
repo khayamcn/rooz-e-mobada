@@ -294,6 +294,12 @@ export function DocumentsScreen() {
 
         {/* Document list */}
         <div className="flex-1 px-3 py-3 overflow-y-auto no-scrollbar">
+          {/* Active category label */}
+          <div className="px-1 pb-2 text-sm font-bold text-strong">
+            {activeCat === "all"
+              ? "همه"
+              : CATEGORIES.find((c) => c.id === activeCat)?.label || "همه"}
+          </div>
           {filtered.length === 0 ? (
             <AppCard asDiv className="!p-6 text-center">
               <div className="mx-auto h-12 w-12 rounded-2xl brand-bg-soft text-brand-text flex items-center justify-center mb-3">

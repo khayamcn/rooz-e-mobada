@@ -1,12 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import { Eye, EyeOff, KeyRound, Pencil, Plus, Trash2 } from "lucide-react";
+import {
+  Eye,
+  EyeOff,
+  ExternalLink,
+  KeyRound,
+  Pencil,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { useApp } from "@/lib/store";
 import { ScreenHeader } from "@/components/shared/screen-header";
 import { AppCard } from "@/components/shared/ui";
 import { Sheet } from "@/components/shared/sheet";
-import { CopyableField, CopyChip } from "@/components/shared/copyable-field";
+import { CopyChip } from "@/components/shared/copyable-field";
 import type { Credential } from "@/lib/types";
 
 interface FormState {
@@ -40,6 +48,7 @@ export function PasswordsScreen() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
+  const [viewingCr, setViewingCr] = useState<Credential | null>(null);
 
   const personName = (id: string) =>
     people.find((p) => p.id === id)?.fullName || "نامشخص";
@@ -131,7 +140,12 @@ export function PasswordsScreen() {
           const show = revealed[c.id];
           return (
             <AppCard key={c.id} asDiv className="!p-4">
-              <div className="flex items-center gap-3 mb-3">
+              <button
+                type="button"
+                onClick={() => setViewingCr(c)}
+                className="w-full text-right flex items-center gap-3 mb-3 pressable"
+                aria-label={`مشاهده ${c.serviceName}`}
+              >
                 <div className="h-10 w-10 rounded-lg brand-gradient text-white flex items-center justify-center shrink-0">
                   <KeyRound size={18} />
                 </div>
@@ -148,7 +162,7 @@ export function PasswordsScreen() {
                     خصوصی
                   </span>
                 )}
-              </div>
+              </button>
 
               <div className="space-y-2">
                 <div className="surface-input rounded-card-sm p-2 flex items-center justify-between gap-2">
@@ -313,6 +327,134 @@ export function PasswordsScreen() {
             />
           </Field>
         </div>
+      </Sheet>
+
+      {/* Viewer popup */}
+      <Sheet
+        open={!!viewingCr}
+        onClose={() => setViewingCr(null)}
+        title={viewingCr?.serviceName || "رمز"}
+        subtitle={viewingCr ? personName(viewingCr.personId) : undefined}
+      >
+        {viewingCr && (
+          <div className="space-y-3 py-2">
+            {/* Service name + URL */}
+            <div className="surface-input rounded-card-sm p-3">
+              <div className="text-[10px] text-soft mb-0.5">نام سرویس</div>
+              <div className="text-sm font-bold text-strong">
+                {viewingCr.serviceName}
+              </div>
+              {viewingCr.url && (
+                <a
+                  href={viewingCr.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  dir="ltr"
+                  className="mt-1 inline-flex items-center gap-1 text-xs brand-text font-mono break-all text-right"
+                >
+                  {viewingCr.url}
+                  <ExternalLink size={12} />
+                </a>
+              )}
+            </div>
+
+            {/* Username + copy */}
+            <div className="surface-input rounded-card-sm p-3 flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <div className="text-[10px] text-soft">نام کاربری</div>
+                <div
+                  dir="ltr"
+                  className="text-sm font-mono text-strong truncate text-right"
+                >
+                  {viewingCr.username}
+                </div>
+              </div>
+              <CopyChip
+                value={viewingCr.username}
+                size={32}
+                label="کپی نام کاربری"
+              />
+            </div>
+
+            {/* Password show/hide + copy */}
+            <div className="surface-input rounded-card-sm p-3 flex items-center justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <div className="text-[10px] text-soft">رمز عبور</div>
+                <div
+                  dir="ltr"
+                  className="text-sm font-mono text-strong truncate text-right"
+                >
+                  {revealed[viewingCr.id]
+                    ? viewingCr.password
+                    : "•".repeat(
+                        Math.min(16, viewingCr.password.length || 8),
+                      )}
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setRevealed((r) => ({
+                      ...r,
+                      [viewingCr.id]: !r[viewingCr.id],
+                    }))
+                  }
+                  aria-label={
+                    revealed[viewingCr.id] ? "مخفی کردن" : "نمایش رمز"
+                  }
+                  className="h-8 w-8 rounded-lg surface-input text-strong flex items-center justify-center pressable"
+                >
+                  {revealed[viewingCr.id] ? (
+                    <EyeOff size={14} />
+                  ) : (
+                    <Eye size={14} />
+                  )}
+                </button>
+                <CopyChip
+                  value={viewingCr.password}
+                  size={32}
+                  label="کپی رمز"
+                />
+              </div>
+            </div>
+
+            {/* Notes */}
+            {viewingCr.notes && (
+              <div className="surface-input rounded-card-sm p-3">
+                <div className="text-[10px] text-soft mb-0.5">یادداشت</div>
+                <div className="text-sm text-strong leading-relaxed whitespace-pre-wrap">
+                  {viewingCr.notes}
+                </div>
+              </div>
+            )}
+
+            {/* Edit / delete actions */}
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  openEdit(viewingCr);
+                  setViewingCr(null);
+                }}
+                className="flex-1 h-9 rounded-lg surface-input text-strong flex items-center justify-center gap-1.5 text-xs font-medium pressable"
+              >
+                <Pencil size={14} /> ویرایش
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  handleDelete(viewingCr.id);
+                  setViewingCr(null);
+                }}
+                aria-label="حذف"
+                className="h-9 w-9 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-600 flex items-center justify-center pressable"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+          </div>
+        )}
       </Sheet>
     </div>
   );

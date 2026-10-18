@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, type ChangeEvent } from "react";
-import { Camera, ImagePlus, X } from "lucide-react";
+import { Camera, ImagePlus, Share2, X } from "lucide-react";
 
 interface MultiImageUploaderProps {
   value: string[];
@@ -97,6 +97,35 @@ export function MultiImageUploader({
     onChange(next);
   };
 
+  const shareImage = async (idx: number) => {
+    const dataUrl = value[idx];
+    if (!dataUrl) return;
+    try {
+      const res = await fetch(dataUrl);
+      const blob = await res.blob();
+      const file = new File([blob], `image-${idx + 1}.jpg`, {
+        type: blob.type || "image/jpeg",
+      });
+      if (navigator.share && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: `تصویر ${idx + 1}`,
+        });
+      } else {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `image-${idx + 1}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+    } catch {
+      // user cancelled or share failed
+    }
+  };
+
   return (
     <div className="space-y-3">
       {label && <p className="text-xs text-soft">{label}</p>}
@@ -158,6 +187,17 @@ export function MultiImageUploader({
               <span className="absolute top-1 right-1 text-[10px] px-1.5 py-0.5 rounded-full bg-black/60 text-white">
                 {idx + 1}
               </span>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void shareImage(idx);
+                }}
+                aria-label="اشتراک‌گذاری"
+                className="absolute top-1 left-1 h-7 w-7 rounded-full bg-black/60 text-white flex items-center justify-center pressable"
+              >
+                <Share2 size={14} />
+              </button>
               <button
                 type="button"
                 onClick={() => removeAt(idx)}

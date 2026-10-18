@@ -81,10 +81,12 @@ export function CopyChip({
   value,
   label,
   size = 32,
+  tone = "default",
 }: {
   value: string;
   label?: string;
   size?: number;
+  tone?: "default" | "glass";
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -96,13 +98,18 @@ export function CopyChip({
     }
   };
 
+  const toneClass =
+    tone === "glass"
+      ? "bg-white/20 text-white hover:bg-white/30"
+      : "brand-bg-soft text-brand-text";
+
   return (
     <button
       type="button"
       onClick={handleCopy}
       aria-label={label || "کپی"}
       style={{ height: size, width: size }}
-      className="shrink-0 rounded-lg brand-bg-soft text-brand-text flex items-center justify-center pressable"
+      className={`shrink-0 rounded-lg flex items-center justify-center pressable ${toneClass}`}
     >
       {copied ? <Check size={Math.max(12, size - 14)} /> : <Copy size={Math.max(12, size - 14)} />}
     </button>

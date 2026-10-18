@@ -43,15 +43,32 @@ export function SettingsScreen() {
   const [confirmDeactivate, setConfirmDeactivate] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleExport = () => {
+  const handleExport = async () => {
     if (!passphrase.trim()) return;
     const encrypted = exportBackup(passphrase.trim());
-    // Trigger download
+    const fileName = `rooz-mobada-backup-${new Date().toISOString().slice(0, 10)}.enc`;
     const blob = new Blob([encrypted], { type: "text/plain;charset=utf-8" });
+    const file = new File([blob], fileName, { type: "text/plain" });
+    try {
+      if (navigator.share && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: "پشتیبان روز مبادا" });
+        return;
+      }
+      if (navigator.share) {
+        await navigator.share({
+          title: "پشتیبان روز مبادا",
+          text: "فایل پشتیبان رمزنگاری‌شده",
+        });
+        return;
+      }
+    } catch {
+      // user cancelled or share failed → fall back to download
+    }
+    // Fallback: download
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `rooz-mobada-backup-${new Date().toISOString().slice(0, 10)}.enc`;
+    a.download = fileName;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

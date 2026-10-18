@@ -221,11 +221,19 @@ export function CardsScreen() {
                   </div>
                   <CreditCard size={20} className="opacity-70" />
                 </div>
-                <div
-                  dir="ltr"
-                  className="font-mono tracking-[0.2em] text-base mt-6 text-right"
-                >
-                  {formatCardNumber(c.cardNumber)}
+                <div className="flex items-end justify-between gap-2 mt-6">
+                  <div
+                    dir="ltr"
+                    className="font-mono tracking-[0.2em] text-base text-right"
+                  >
+                    {formatCardNumber(c.cardNumber)}
+                  </div>
+                  <CopyChip
+                    value={c.cardNumber}
+                    size={28}
+                    tone="glass"
+                    label="کپی شماره کارت"
+                  />
                 </div>
                 <div className="flex items-end justify-between mt-3">
                   <div>

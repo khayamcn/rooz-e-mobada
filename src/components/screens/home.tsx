@@ -140,7 +140,7 @@ export function HomeScreen({ onNavigate }: HomeScreenProps) {
         </div>
       </div>
 
-      {/* People — horizontal scroll with big avatars */}
+      {/* People — horizontal scroll with vertical profile cards */}
       {people.length > 0 && (
         <div className="pb-2">
           <div className="flex items-center justify-between mb-2 px-4">
@@ -152,53 +152,71 @@ export function HomeScreen({ onNavigate }: HomeScreenProps) {
               همه <ChevronLeft className="w-3 h-3" />
             </button>
           </div>
-          {/* Horizontal scroll */}
+          {/* Horizontal scroll with vertical cards */}
           <div className="flex gap-3 overflow-x-auto no-scrollbar px-4 pb-1">
-            {people.map((person, i) => (
-              <motion.button
-                key={person.id}
-                type="button"
-                onClick={() => { useApp.getState().setActivePerson(person.id); onNavigate("people"); }}
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: i * 0.05 }}
-                className="shrink-0 w-24 flex flex-col items-center"
-              >
-                {/* Big avatar */}
-                <div className="relative mb-1.5">
+            {people.map((person, i) => {
+              const cardCount = bankCards.filter((c) => c.personId === person.id).length;
+              return (
+                <motion.button
+                  key={person.id}
+                  type="button"
+                  onClick={() => {
+                    useApp.getState().setActivePerson(person.id);
+                    onNavigate("people");
+                  }}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: i * 0.05 }}
+                  className="shrink-0 w-36 surface-card rounded-card p-3 flex flex-col items-center text-center pressable"
+                  aria-label={person.fullName}
+                >
+                  {/* Circular avatar centered at top */}
                   <ProfileAvatar
                     name={person.fullName}
                     avatarDataUrl={person.avatarDataUrl}
-                    size="xl"
+                    size="lg"
                     ring
                   />
-                </div>
-                {/* Name */}
-                <p className="text-xs font-bold text-strong text-center truncate w-full">{person.fullName.split(" ")[0]}</p>
-                {/* Phone icon */}
-                {person.phone ? (
-                  <a
-                    href={`tel:${person.phone}`}
-                    onClick={(e) => e.stopPropagation()}
-                    className="mt-1 w-7 h-7 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500 hover:bg-emerald-500/20 transition-colors"
-                    aria-label="تماس"
-                  >
-                    <Phone className="w-3.5 h-3.5" />
-                  </a>
-                ) : (
-                  <div className="mt-1 w-7 h-7 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center">
-                    <Phone className="w-3.5 h-3.5 text-slate-400" />
+                  {/* Name */}
+                  <p className="text-sm font-bold text-strong mt-2 truncate w-full">
+                    {person.fullName.split(" ")[0]}
+                  </p>
+                  {person.relation && (
+                    <p className="text-[10px] text-soft truncate w-full">
+                      {person.relation}
+                    </p>
+                  )}
+                  {/* Action icons: phone + card count */}
+                  <div className="flex items-center justify-center gap-2 mt-2">
+                    {person.phone ? (
+                      <a
+                        href={`tel:${person.phone}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="h-8 w-8 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500 hover:bg-emerald-500/20 transition-colors"
+                        aria-label="تماس"
+                      >
+                        <Phone className="w-4 h-4" />
+                      </a>
+                    ) : (
+                      <span className="h-8 w-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center">
+                        <Phone className="w-4 h-4 text-slate-400" />
+                      </span>
+                    )}
+                    <span className="h-8 px-2 rounded-full bg-violet-500/10 flex items-center justify-center gap-1 text-violet-500" aria-label="تعداد کارت‌ها">
+                      <CreditCard className="w-4 h-4" />
+                      <span className="text-[10px] font-bold">{cardCount}</span>
+                    </span>
                   </div>
-                )}
-              </motion.button>
-            ))}
+                </motion.button>
+              );
+            })}
             {/* Add person button */}
             <button
               type="button"
               onClick={() => onNavigate("people")}
-              className="shrink-0 w-24 flex flex-col items-center justify-center"
+              className="shrink-0 w-36 surface-card rounded-card p-3 flex flex-col items-center justify-center pressable min-h-[148px]"
             >
-              <div className="w-16 h-16 rounded-full border-2 border-dashed border-violet-400/50 flex items-center justify-center mb-1.5">
+              <div className="w-16 h-16 rounded-full border-2 border-dashed border-violet-400/50 flex items-center justify-center mb-2">
                 <Plus className="w-6 h-6 brand-text" />
               </div>
               <p className="text-[10px] text-soft text-center">افزودن فرد</p>
