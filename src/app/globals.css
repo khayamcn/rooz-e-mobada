@@ -29,100 +29,103 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ════════════════════════════════════════════════════════════════
-   FLAT DESIGN — 4 Color Themes
+   DESIGN SYSTEM — Purple/Lavender Soft UI
+   Based on reference design: health vault app
    ════════════════════════════════════════════════════════════════ */
+
+/* ── Color themes (4 palettes) ── */
 :root, [data-theme="violet"] {
-  --brand-50: #f5f3ff;
-  --brand-100: #ede9fe;
-  --brand-200: #ddd6fe;
-  --brand-300: #c4b5fd;
-  --brand-400: #a78bfa;
-  --brand-500: #8b5cf6;
-  --brand-600: #7c3aed;
-  --brand-700: #6d28d9;
-  --brand-800: #5b21b6;
-  --brand-900: #4c1d95;
-  --accent: #f59e0b;
-  --accent-glow: rgba(139, 92, 246, 0.3);
+  --brand-50: #EDE9FE;
+  --brand-100: #DDD6FE;
+  --brand-200: #C4B5FD;
+  --brand-300: #A78BFA;
+  --brand-400: #8B5CF6;
+  --brand-500: #7C3AED;
+  --brand-600: #6D28D9;
+  --brand-700: #5B21B6;
+  --brand-800: #4C1D95;
+  --accent: #8B5CF6;
+  --accent-glow: rgba(139, 92, 246, 0.25);
 }
 [data-theme="emerald"] {
-  --brand-50: #ecfdf5;
-  --brand-100: #d1fae5;
-  --brand-200: #a7f3d0;
-  --brand-300: #6ee7b7;
-  --brand-400: #34d399;
-  --brand-500: #10b981;
+  --brand-50: #ECFDF5;
+  --brand-100: #D1FAE5;
+  --brand-200: #A7F3D0;
+  --brand-300: #6EE7B7;
+  --brand-400: #34D399;
+  --brand-500: #10B981;
   --brand-600: #059669;
   --brand-700: #047857;
-  --brand-800: #065f46;
-  --brand-900: #064e3b;
-  --accent: #f59e0b;
-  --accent-glow: rgba(16, 185, 129, 0.3);
+  --brand-800: #065F46;
+  --accent: #10B981;
+  --accent-glow: rgba(16, 185, 129, 0.25);
 }
 [data-theme="rose"] {
-  --brand-50: #fff1f2;
-  --brand-100: #ffe4e6;
-  --brand-200: #fecdd3;
-  --brand-300: #fda4af;
-  --brand-400: #fb7185;
-  --brand-500: #f43f5e;
-  --brand-600: #e11d48;
-  --brand-700: #be123c;
-  --brand-800: #9f1239;
-  --brand-900: #881337;
-  --accent: #8b5cf6;
-  --accent-glow: rgba(244, 63, 94, 0.3);
+  --brand-50: #FFF1F2;
+  --brand-100: #FFE4E6;
+  --brand-200: #FECDD3;
+  --brand-300: #FDA4AF;
+  --brand-400: #FB7185;
+  --brand-500: #F43F5E;
+  --brand-600: #E11D48;
+  --brand-700: #BE123C;
+  --brand-800: #9F1239;
+  --accent: #F43F5E;
+  --accent-glow: rgba(244, 63, 94, 0.25);
 }
 [data-theme="blue"] {
-  --brand-50: #eff6ff;
-  --brand-100: #dbeafe;
-  --brand-200: #bfdbfe;
-  --brand-300: #93c5fd;
-  --brand-400: #60a5fa;
-  --brand-500: #3b82f6;
-  --brand-600: #2563eb;
-  --brand-700: #1d4ed8;
-  --brand-800: #1e40af;
-  --brand-900: #1e3a8a;
-  --accent: #f59e0b;
-  --accent-glow: rgba(59, 130, 246, 0.3);
+  --brand-50: #EFF6FF;
+  --brand-100: #DBEAFE;
+  --brand-200: #BFDBFE;
+  --brand-300: #93C5FD;
+  --brand-400: #60A5FA;
+  --brand-500: #3B82F6;
+  --brand-600: #2563EB;
+  --brand-700: #1D4ED8;
+  --brand-800: #1E40AF;
+  --accent: #3B82F6;
+  --accent-glow: rgba(59, 130, 246, 0.25);
 }
 
-/* ── Light mode (flat) ── */
+/* ── Light mode (lavender soft UI) ── */
 :root {
-  --radius: 0.75rem;
-  --page-bg: #f8fafc;
-  --page-fg: #1e293b;
-  --page-fg-muted: #64748b;
-  --card-bg: #ffffff;
-  --card-border: #e2e8f0;
-  --card-shadow: none;
-  --nav-bg: rgba(255, 255, 255, 0.9);
-  --nav-border: #e2e8f0;
+  --radius: 1rem;
+  --page-bg: #EDE9FE;
+  --page-fg: #1F2937;
+  --page-fg-muted: #6B7280;
+  --card-bg: #FFFFFF;
+  --card-border: #E9D5FF;
+  --card-shadow: 0 2px 8px rgba(139, 92, 246, 0.08);
+  --nav-bg: #1F2937;
+  --nav-border: transparent;
+  --nav-fg: #9CA3AF;
+  --nav-fg-active: #FFFFFF;
   --chip-bg: var(--brand-50);
   --chip-fg: var(--brand-600);
-  --input-bg: #f8fafc;
-  --input-border: #e2e8f0;
-  --header-bg: var(--brand-600);
-  --header-fg: #ffffff;
+  --input-bg: #F9FAFB;
+  --input-border: #E5E7EB;
+  --header-bg: linear-gradient(135deg, var(--brand-400) 0%, var(--brand-600) 100%);
+  --header-fg: #FFFFFF;
 }
 
-/* ── Dark mode (flat) ── */
+/* ── Dark mode ── */
 .dark {
-  --page-bg: #0f172a;
-  --page-fg: #e2e8f0;
-  --page-fg-muted: #64748b;
-  --card-bg: #1e293b;
+  --page-bg: #0F172A;
+  --page-fg: #E2E8F0;
+  --page-fg-muted: #94A3B8;
+  --card-bg: #1E293B;
   --card-border: #334155;
-  --card-shadow: none;
-  --nav-bg: rgba(15, 23, 42, 0.9);
-  --nav-border: #334155;
+  --card-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --nav-bg: #0F172A;
+  --nav-border: #1E293B;
+  --nav-fg: #64748B;
+  --nav-fg-active: #E2E8F0;
   --chip-bg: rgba(139, 92, 246, 0.15);
-  --chip-fg: var(--brand-400);
-  --input-bg: #1e293b;
+  --chip-fg: var(--brand-300);
+  --input-bg: #1E293B;
   --input-border: #334155;
-  --header-bg: var(--brand-700);
-  --header-fg: #f1f5f9;
+  --header-bg: linear-gradient(135deg, var(--brand-600) 0%, var(--brand-800) 100%);
+  --header-fg: #F1F5F9;
 }
 
 @theme inline {
@@ -145,20 +148,17 @@
     text-rendering: optimizeLegibility;
   }
   body { min-height: 100vh; }
-  ::selection {
-    background: var(--brand-500);
-    color: white;
-  }
+  ::selection { background: var(--brand-500); color: white; }
 }
 
 /* ════════════════════════════════════════════════════════════════
-   Flat utility classes
+   Utility classes — Soft UI
    ════════════════════════════════════════════════════════════════ */
 .bg-page { background: var(--page-bg) !important; color: var(--page-fg); }
 .surface-card {
   background: var(--card-bg);
   border: 1px solid var(--card-border);
-  box-shadow: none;
+  box-shadow: var(--card-shadow);
 }
 .surface-nav {
   background: var(--nav-bg);
@@ -176,15 +176,34 @@
 }
 .text-strong { color: var(--page-fg); }
 .text-soft { color: var(--page-fg-muted); }
-.brand-gradient { background: var(--brand-600); }
-.dark .brand-gradient { background: var(--brand-600); }
+.brand-gradient { background: linear-gradient(135deg, var(--brand-400), var(--brand-600)); }
 .brand-text { color: var(--brand-600); }
-.dark .brand-text { color: var(--brand-400); }
+.dark .brand-text { color: var(--brand-300); }
 .brand-bg-soft { background: var(--chip-bg); }
 .brand-ring { box-shadow: 0 0 0 2px var(--brand-500); }
 
-.shadow-glow { box-shadow: 0 0 0 1px var(--card-border); }
-.shadow-card { box-shadow: none; }
+/* Soft shadow for cards */
+.shadow-glow { box-shadow: 0 4px 16px var(--accent-glow); }
+.shadow-card { box-shadow: var(--card-shadow); }
+
+/* Pastel category colors */
+.cat-blue { background: #DBEAFE; }
+.cat-orange { background: #FFEDD5; }
+.cat-yellow { background: #FEF3C7; }
+.cat-green { background: #D1FAE5; }
+.cat-cream { background: #FDF4ED; }
+.cat-pink { background: #FFE4E6; }
+.cat-violet { background: #EDE9FE; }
+.cat-slate { background: #F1F5F9; }
+
+.cat-blue-icon { color: #3B82F6; }
+.cat-orange-icon { color: #F97316; }
+.cat-yellow-icon { color: #EAB308; }
+.cat-green-icon { color: #22C55E; }
+.cat-cream-icon { color: #D97706; }
+.cat-pink-icon { color: #EC4899; }
+.cat-violet-icon { color: #8B5CF6; }
+.cat-slate-icon { color: #64748B; }
 
 /* Fix dropdown text color */
 select { color: var(--page-fg); background-color: var(--card-bg); }
@@ -197,26 +216,11 @@ select option { color: #1e293b; background-color: #ffffff; }
 .safe-top { padding-top: env(safe-area-inset-top); }
 .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
 
-@keyframes pulse-soft {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
+@keyframes pulse-soft { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
 .animate-pulse-soft { animation: pulse-soft 2s ease-in-out infinite; }
-
-@keyframes slide-up {
-  from { transform: translateY(20px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
-}
+@keyframes slide-up { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 .animate-slide-up { animation: slide-up 0.25s ease-out both; }
-
-@keyframes scale-in {
-  from { transform: scale(0.95); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
-}
+@keyframes scale-in { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 .animate-scale-in { animation: scale-in 0.15s ease-out both; }
-
-@keyframes fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 .animate-fade-in { animation: fade-in 0.2s ease-out both; }
