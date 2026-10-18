@@ -1,219 +1,155 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { motion } from "framer-motion";
-import { ShieldCheck, KeyRound, ClipboardPaste, Loader2, Lock } from "lucide-react";
+import { useEffect, useState } from "react";
+import { AlertCircle, ClipboardPaste, KeyRound, Loader2, Lock, ShieldCheck } from "lucide-react";
 import { useApp } from "@/lib/store";
 import { validateToken } from "@/lib/token-validator";
-import { cn } from "@/lib/utils";
 
 export function TokenActivation() {
-  const activate = useApp((s) => s.activate);
   const [token, setToken] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [clipboardDetected, setClipboardDetected] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [hasClipboard, setHasClipboard] = useState(false);
+  const activate = useApp((s) => s.activate);
 
-  // Auto-detect clipboard on mount — if user copied a token before
-  // launching the app, paste it automatically.
+  // Try clipboard on mount (some browsers require interaction; we attempt anyway)
   useEffect(() => {
-    const checkClipboard = async () => {
+    let cancelled = false;
+    async function peek() {
       try {
-        if (navigator.clipboard?.readText) {
-          const text = await navigator.clipboard.readText();
-          if (text && text.length > 20 && text.length < 100) {
-            setToken(text);
-            setClipboardDetected(true);
-            setTimeout(() => {
-              inputRef.current?.focus();
-            }, 100);
-          }
+        if (navigator.clipboard && navigator.clipboard.readText) {
+          // Just probe availability; we won't read for privacy
+          setHasClipboard(true);
         }
       } catch {
-        // Clipboard read blocked — user must paste manually
+        if (!cancelled) setHasClipboard(false);
       }
+    }
+    void peek();
+    return () => {
+      cancelled = true;
     };
-    const t = setTimeout(checkClipboard, 500);
-    return () => clearTimeout(t);
   }, []);
 
-  const handlePaste = async () => {
-    try {
-      const text = await navigator.clipboard.readText();
-      setToken(text);
-      setError(null);
-    } catch {
-      setError("دسترسی به حافظه موقت ممکن نیست. توکن را دستی وارد کنید.");
-    }
-  };
-
-  const handleActivate = () => {
+  const handleSubmit = async () => {
+    setError(null);
     if (!token.trim()) {
-      setError("لطفاً توکن فعال‌سازی را وارد کنید.");
+      setError("لطفاً توکن را وارد کنید.");
       return;
     }
     setLoading(true);
-    setError(null);
-    setTimeout(() => {
-      const ok = validateToken(token);
-      if (ok) {
-        useApp.setState({ activated: true });
-      } else {
-        setError("توکن نامعتبر است. لطفاً توکن صحیح را از تولیدکننده دریافت کنید.");
-      }
-      setLoading(false);
-    }, 800);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
-      handleActivate();
+    // simulate brief async to show spinner
+    await new Promise((r) => setTimeout(r, 400));
+    const ok = activate(token.trim());
+    setLoading(false);
+    if (!ok) {
+      setError("توکن نامعتبر است. لطفاً دوباره تلاش کنید.");
     }
   };
 
+  const handlePaste = async () => {
+    try {
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        const text = await navigator.clipboard.readText();
+        if (text) setToken(text.trim());
+        return;
+      }
+    } catch {
+      // ignore
+    }
+    setError("امکان دسترسی به کلیپ‌بورد وجود ندارد. لطفاً توکن را به‌صورت دستی وارد کنید.");
+  };
+
+  const isValid = validateToken(token.trim());
+
   return (
-    <div className="flex flex-col h-full bg-gradient-to-br from-violet-950 via-slate-900 to-violet-950 text-white relative overflow-hidden">
-      <motion.div
-        className="absolute -top-20 -right-20 w-80 h-80 rounded-full bg-violet-500/20 blur-3xl pointer-events-none"
-        animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.7, 0.5] }}
-        transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-      />
-      <motion.div
-        className="absolute -bottom-20 -left-20 w-72 h-72 rounded-full bg-fuchsia-500/15 blur-3xl pointer-events-none"
-        animate={{ scale: [1, 1.3, 1], opacity: [0.4, 0.6, 0.4] }}
-        transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 2 }}
-      />
+    <div className="min-h-screen bg-page flex flex-col items-center justify-center px-6 py-10">
+      <div className="w-full max-w-sm">
+        <div className="flex flex-col items-center mb-8">
+          <div className="relative mb-4">
+            <div
+              aria-hidden
+              className="absolute inset-0 brand-gradient blur-3xl opacity-30 scale-150"
+            />
+            <div className="relative h-20 w-20 rounded-3xl brand-gradient flex items-center justify-center text-white shadow-glow">
+              <KeyRound size={36} strokeWidth={1.8} />
+            </div>
+          </div>
+          <h1 className="text-xl font-bold text-strong">فعال‌سازی برنامه</h1>
+          <p className="text-sm text-soft mt-2 text-center leading-relaxed">
+            برای استفاده از روز مبادا، توکن دریافتی خود را وارد کنید.
+          </p>
+        </div>
 
-      <div className="relative flex-1 flex flex-col items-center justify-center p-8 z-10">
-        <motion.div
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ type: "spring", stiffness: 200 }}
-          className="w-24 h-24 rounded-3xl bg-gradient-to-br from-violet-500 to-fuchsia-600 flex items-center justify-center mb-6 shadow-glow"
-        >
-          <ShieldCheck className="w-12 h-12 text-white" />
-        </motion.div>
-
-        <motion.h1
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.1 }}
-          className="text-3xl font-bold mb-2"
-        >
-          روز مبادا
-        </motion.h1>
-
-        <motion.p
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.2 }}
-          className="text-sm text-white/70 mb-8 max-w-xs text-center"
-        >
-          پرونده اضطراری خانواده — برای فعال‌سازی، توکن دریافتی از تولیدکننده را وارد کنید.
-        </motion.p>
-
-        {clipboardDetected && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-3 px-3 py-2 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-[11px] text-emerald-300 flex items-center gap-2"
-          >
-            <ClipboardPaste className="w-3.5 h-3.5" />
-            توکن از حافظه موقت کپی شد
-          </motion.div>
-        )}
-
-        <motion.div
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.3 }}
-          className="w-full max-w-sm"
-        >
-          <label className="flex items-center gap-1.5 text-xs font-semibold text-white/80 mb-2">
-            <KeyRound className="w-3.5 h-3.5" />
-            توکن فعال‌سازی
-          </label>
+        <div className="surface-card rounded-card p-5 space-y-3">
+          <label className="text-xs text-soft block">توکن فعال‌سازی</label>
           <div className="relative">
             <input
-              ref={inputRef}
               type="text"
+              dir="ltr"
               value={token}
               onChange={(e) => {
                 setToken(e.target.value);
                 setError(null);
               }}
-              onKeyDown={handleKeyDown}
-              placeholder="توکن را اینجا وارد کنید..."
-              className="w-full bg-white/5 border-2 border-white/10 rounded-2xl px-4 py-4 text-sm text-white placeholder:text-white/40 focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-500/30 transition-all font-mono"
-              dir="ltr"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleSubmit();
+              }}
+              placeholder="توکن خود را وارد کنید"
+              className="font-mono text-sm pl-10"
               autoComplete="off"
               spellCheck={false}
+              autoCapitalize="off"
             />
-            {token && (
-              <button
-                type="button"
-                onClick={() => setToken("")}
-                className="absolute top-1/2 -translate-y-1/2 left-3 w-6 h-6 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/60"
-                aria-label="پاک کردن"
-              >
-                ✕
-              </button>
-            )}
+            <Lock
+              size={16}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-violet-400"
+            />
           </div>
 
-          <button
-            type="button"
-            onClick={handlePaste}
-            className="mt-2 w-full py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-semibold text-white/70 hover:bg-white/10 transition-colors flex items-center justify-center gap-2"
-          >
-            <ClipboardPaste className="w-3.5 h-3.5" />
-            جای‌گذاری از حافظه موقت
-          </button>
+          {hasClipboard && (
+            <button
+              type="button"
+              onClick={handlePaste}
+              className="inline-flex items-center gap-1.5 text-xs text-brand-text pressable"
+            >
+              <ClipboardPaste size={14} /> جسباندن از کلیپ‌بورد
+            </button>
+          )}
 
           {error && (
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="mt-3 text-[11px] text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2"
-            >
-              {error}
-            </motion.p>
+            <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 dark:bg-red-900/20 dark:text-red-300 px-3 py-2 rounded-card-sm">
+              <AlertCircle size={14} />
+              <span>{error}</span>
+            </div>
           )}
 
           <button
             type="button"
-            onClick={handleActivate}
-            disabled={!token.trim() || loading}
-            className={cn(
-              "w-full mt-4 py-3.5 rounded-2xl font-bold shadow-glow active:scale-95 transition-all flex items-center justify-center gap-2",
-              token.trim() && !loading
-                ? "bg-gradient-to-br from-violet-500 to-fuchsia-600 text-white"
-                : "bg-white/5 text-white/40 cursor-not-allowed"
-            )}
+            onClick={handleSubmit}
+            disabled={loading || !token.trim()}
+            className="w-full h-11 rounded-full brand-gradient text-white font-bold text-sm pressable shadow-glow flex items-center justify-center gap-2"
           >
             {loading ? (
               <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                در حال بررسی...
+                <Loader2 size={16} className="animate-spin" /> در حال بررسی...
               </>
             ) : (
-              <>
-                <Lock className="w-5 h-5" />
-                فعال‌سازی برنامه
-              </>
+              "فعال‌سازی"
             )}
           </button>
-        </motion.div>
+        </div>
 
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-          className="mt-8 text-[10px] text-white/40 text-center max-w-xs"
-        >
-          این توکن فقط توسط تولیدکننده نرم‌افزار صادر می‌شود و برای فعال‌سازی دائمی برنامه روی این دستگاه استفاده می‌شود.
-        </motion.p>
+        <div className="mt-6 flex items-center justify-center gap-2 text-[11px] text-faint">
+          <ShieldCheck size={14} className="text-emerald-500" />
+          <span>اطلاعات شما به‌صورت آفلاین روی همین دستگاه ذخیره می‌شود.</span>
+        </div>
+
+        {isValid && (
+          <div className="mt-4 text-xs text-emerald-600 bg-emerald-50 dark:bg-emerald-900/30 px-3 py-2 rounded-card-sm text-center">
+            توکن معتبر است. روی «فعال‌سازی» بزنید.
+          </div>
+        )}
       </div>
     </div>
   );

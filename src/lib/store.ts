@@ -1,341 +1,304 @@
-/**
- * Rooz-e Mobada — Global app store (Zustand) — v3.0
- *
- * Fully offline personal vault with token activation.
- * Manages people, bank cards, bills, documents, credentials.
- * Supports multiple color themes + day/night.
- * Encrypted backup/restore.
- */
-
 "use client";
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type {
-  Bill,
   BankCard,
+  Bill,
   ColorTheme,
   Credential,
   DocumentItem,
   EmergencyContact,
-  EmergencyGuide,
   Person,
   Theme,
 } from "./types";
 import { validateToken } from "./token-validator";
 
-const APP_VERSION = "3.0.0";
+const APP_VERSION = "4.0.0";
+
+const SEED_CONTACTS: EmergencyContact[] = [
+  {
+    id: "seed-115",
+    name: "اورژانس",
+    relationOrRole: "مرکز اورژانس ملی",
+    phonePrimary: "115",
+    iconLabel: "ambulance",
+    priorityOrder: 1,
+    isSystemEmergency: true,
+  },
+  {
+    id: "seed-110",
+    name: "پلیس",
+    relationOrRole: "مرکز پلیس",
+    phonePrimary: "110",
+    iconLabel: "police",
+    priorityOrder: 2,
+    isSystemEmergency: true,
+  },
+  {
+    id: "seed-125",
+    name: "آتش‌نشانی",
+    relationOrRole: "مرکز آتش‌نشانی",
+    phonePrimary: "125",
+    iconLabel: "fire",
+    priorityOrder: 3,
+    isSystemEmergency: true,
+  },
+  {
+    id: "seed-191",
+    name: "گاز",
+    relationOrRole: "مرکز فوریت‌های گاز",
+    phonePrimary: "191",
+    iconLabel: "gas",
+    priorityOrder: 4,
+    isSystemEmergency: true,
+  },
+];
+
+function xorCipher(text: string, passphrase: string): string {
+  if (!passphrase) return text;
+  const key = passphrase;
+  let out = "";
+  for (let i = 0; i < text.length; i++) {
+    out += String.fromCharCode(text.charCodeAt(i) ^ key.charCodeAt(i % key.length));
+  }
+  return out;
+}
+
+function toBase64(input: string): string {
+  if (typeof btoa === "function") return btoa(input);
+  // Fallback for environments without btoa
+  let out = "";
+  for (let i = 0; i < input.length; i++) {
+    const c = input.charCodeAt(i);
+    out += String.fromCharCode(c);
+  }
+  return out;
+}
+
+function fromBase64(input: string): string {
+  if (typeof atob === "function") return atob(input);
+  return input;
+}
 
 interface AppState {
-  // ── App versioning ───────────────────────────────────
   appVersion: string;
-
-  // ── Token activation ─────────────────────────────────
   activated: boolean;
   hasSeenOnboarding: boolean;
+  theme: Theme;
+  colorTheme: ColorTheme;
+  people: Person[];
+  activePersonId: string | null;
+  bankCards: BankCard[];
+  bills: Bill[];
+  documents: DocumentItem[];
+  credentials: Credential[];
+  contacts: EmergencyContact[];
+  lastBackupAt: string | null;
+
   activate: (token: string) => boolean;
   deactivate: () => void;
   completeOnboarding: () => void;
 
-  // ── Theme + Color ────────────────────────────────────
-  theme: Theme;
-  colorTheme: ColorTheme;
   setTheme: (t: Theme) => void;
   toggleTheme: () => void;
   setColorTheme: (c: ColorTheme) => void;
 
-  // ── People ────────────────────────────────────────────
-  people: Person[];
-  addPerson: (p: Omit<Person, "id" | "createdAt">) => void;
+  addPerson: (p: Omit<Person, "id" | "createdAt">) => string;
   updatePerson: (id: string, patch: Partial<Person>) => void;
-  removePerson: (id: string) => void;
-
-  // ── Active person (for filtering) ────────────────────
-  activePersonId: string | null;
+  deletePerson: (id: string) => void;
   setActivePerson: (id: string | null) => void;
 
-  // ── Bank Cards ───────────────────────────────────────
-  bankCards: BankCard[];
   addBankCard: (c: Omit<BankCard, "id" | "createdAt">) => void;
   updateBankCard: (id: string, patch: Partial<BankCard>) => void;
-  removeBankCard: (id: string) => void;
+  deleteBankCard: (id: string) => void;
 
-  // ── Bills ────────────────────────────────────────────
-  bills: Bill[];
   addBill: (b: Omit<Bill, "id" | "createdAt">) => void;
   updateBill: (id: string, patch: Partial<Bill>) => void;
-  removeBill: (id: string) => void;
+  deleteBill: (id: string) => void;
 
-  // ── Documents ────────────────────────────────────────
-  documents: DocumentItem[];
   addDocument: (d: Omit<DocumentItem, "id" | "createdAt">) => void;
   updateDocument: (id: string, patch: Partial<DocumentItem>) => void;
-  removeDocument: (id: string) => void;
+  deleteDocument: (id: string) => void;
 
-  // ── Credentials ─────────────────────────────────────
-  credentials: Credential[];
   addCredential: (c: Omit<Credential, "id" | "updatedAt">) => void;
   updateCredential: (id: string, patch: Partial<Credential>) => void;
-  removeCredential: (id: string) => void;
+  deleteCredential: (id: string) => void;
 
-  // ── Emergency contacts (read-only seed) ──────────────
-  contacts: EmergencyContact[];
-  guides: EmergencyGuide[];
-
-  // ── Backup / restore with encryption ────────────────
   exportBackup: (passphrase: string) => string;
   importBackup: (encrypted: string, passphrase: string) => boolean;
-  lastBackupAt: string | null;
 }
 
-function uid(prefix = "id") {
-  return `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
-}
-
-function now() {
-  return new Date().toISOString();
-}
-
-// ── Simple XOR stream cipher for backup encryption ──
-function deriveKey(passphrase: string): Uint8Array {
-  const salt = "rooz-e-mobada-v3-salt";
-  const input = passphrase + salt;
-  const key = new Uint8Array(32);
-  let h = 0;
-  for (let i = 0; i < input.length; i++) {
-    h = (h * 31 + input.charCodeAt(i)) | 0;
-    key[i % 32] ^= h & 0xff;
-  }
-  for (let round = 0; round < 1000; round++) {
-    for (let i = 0; i < 32; i++) {
-      key[i] = (key[i] * 31 + round) & 0xff;
-    }
-  }
-  return key;
-}
-
-function encryptBackup(json: string, passphrase: string): string {
-  const key = deriveKey(passphrase);
-  const data = new TextEncoder().encode(json);
-  const out = new Uint8Array(data.length);
-  for (let i = 0; i < data.length; i++) {
-    out[i] = data[i] ^ key[i % key.length];
-  }
-  let bin = "";
-  for (let i = 0; i < out.length; i++) bin += String.fromCharCode(out[i]);
-  return `ROOZ-V3:${btoa(bin)}`;
-}
-
-function decryptBackup(encrypted: string, passphrase: string): string | null {
-  if (!encrypted.startsWith("ROOZ-V3:")) return null;
-  const b64 = encrypted.slice("ROOZ-V3:".length);
-  const key = deriveKey(passphrase);
-  let bin: string;
-  try {
-    bin = atob(b64);
-  } catch {
-    return null;
-  }
-  const data = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) data[i] = bin.charCodeAt(i);
-  const out = new Uint8Array(data.length);
-  for (let i = 0; i < data.length; i++) {
-    out[i] = data[i] ^ key[i % key.length];
-  }
-  try {
-    return new TextDecoder().decode(out);
-  } catch {
-    return null;
-  }
+function uid(): string {
+  return (
+    Date.now().toString(36) + Math.random().toString(36).slice(2, 10)
+  );
 }
 
 export const useApp = create<AppState>()(
   persist(
     (set, get) => ({
-      // ── App versioning ───────────────────────────────
       appVersion: APP_VERSION,
-
-      // ── Token activation ──────────────────────────────
       activated: false,
       hasSeenOnboarding: false,
+      theme: "light",
+      colorTheme: "violet",
+      people: [],
+      activePersonId: null,
+      bankCards: [],
+      bills: [],
+      documents: [],
+      credentials: [],
+      contacts: SEED_CONTACTS,
+      lastBackupAt: null,
+
       activate: (token: string) => {
-        return validateToken(token);
+        if (!validateToken(token)) return false;
+        set({ activated: true });
+        return true;
       },
-      deactivate: () => set({ activated: false }),
+      deactivate: () =>
+        set({
+          activated: false,
+          hasSeenOnboarding: true,
+          people: [],
+          bankCards: [],
+          bills: [],
+          documents: [],
+          credentials: [],
+          activePersonId: null,
+          contacts: SEED_CONTACTS,
+          lastBackupAt: null,
+        }),
       completeOnboarding: () => set({ hasSeenOnboarding: true }),
 
-      // ── Theme + Color ──────────────────────────────────
-      theme: "dark",
-      colorTheme: "violet",
       setTheme: (t) => set({ theme: t }),
       toggleTheme: () =>
-        set((s) => ({ theme: s.theme === "dark" ? "light" : "dark" })),
+        set((s) => ({ theme: s.theme === "light" ? "dark" : "light" })),
       setColorTheme: (c) => set({ colorTheme: c }),
 
-      // ── People ────────────────────────────────────────
-      people: [],
-      addPerson: (p) =>
-        set((s) => ({
-          people: [
-            ...s.people,
-            {
-              ...p,
-              id: uid("p"),
-              createdAt: now(),
-              avatarColor: p.avatarColor || ["violet", "emerald", "rose", "blue"][Math.floor(Math.random() * 4)],
-            },
-          ],
-        })),
+      addPerson: (p) => {
+        const id = uid();
+        const person: Person = { ...p, id, createdAt: new Date().toISOString() };
+        set((s) => ({ people: [...s.people, person] }));
+        return id;
+      },
       updatePerson: (id, patch) =>
         set((s) => ({
           people: s.people.map((p) => (p.id === id ? { ...p, ...patch } : p)),
         })),
-      removePerson: (id) =>
-        set((s) => {
-          const remaining = s.people.filter((p) => p.id !== id);
-          const next =
-            s.activePersonId === id ? null : s.activePersonId;
-          return { people: remaining, activePersonId: next };
-        }),
-
-      // ── Active person ──────────────────────────────────
-      activePersonId: null,
+      deletePerson: (id) =>
+        set((s) => ({
+          people: s.people.filter((p) => p.id !== id),
+          bankCards: s.bankCards.filter((c) => c.personId !== id),
+          bills: s.bills.filter((b) => b.personId !== id),
+          documents: s.documents.filter((d) => d.personId !== id),
+          credentials: s.credentials.filter((c) => c.personId !== id),
+          activePersonId: s.activePersonId === id ? null : s.activePersonId,
+        })),
       setActivePerson: (id) => set({ activePersonId: id }),
 
-      // ── Bank Cards ────────────────────────────────────
-      bankCards: [],
       addBankCard: (c) =>
         set((s) => ({
-          bankCards: [...s.bankCards, { ...c, id: uid("card"), createdAt: now() }],
+          bankCards: [
+            ...s.bankCards,
+            { ...c, id: uid(), createdAt: new Date().toISOString() },
+          ],
         })),
       updateBankCard: (id, patch) =>
         set((s) => ({
           bankCards: s.bankCards.map((c) =>
-            c.id === id ? { ...c, ...patch } : c
+            c.id === id ? { ...c, ...patch } : c,
           ),
         })),
-      removeBankCard: (id) =>
+      deleteBankCard: (id) =>
         set((s) => ({ bankCards: s.bankCards.filter((c) => c.id !== id) })),
 
-      // ── Bills ──────────────────────────────────────────
-      bills: [],
       addBill: (b) =>
         set((s) => ({
-          bills: [...s.bills, { ...b, id: uid("bill"), createdAt: now() }],
+          bills: [
+            ...s.bills,
+            { ...b, id: uid(), createdAt: new Date().toISOString() },
+          ],
         })),
       updateBill: (id, patch) =>
         set((s) => ({
           bills: s.bills.map((b) => (b.id === id ? { ...b, ...patch } : b)),
         })),
-      removeBill: (id) =>
+      deleteBill: (id) =>
         set((s) => ({ bills: s.bills.filter((b) => b.id !== id) })),
 
-      // ── Documents ────────────────────────────────────
-      documents: [],
       addDocument: (d) =>
         set((s) => ({
           documents: [
-            { ...d, id: uid("doc"), createdAt: now() },
             ...s.documents,
+            { ...d, id: uid(), createdAt: new Date().toISOString() },
           ],
         })),
       updateDocument: (id, patch) =>
         set((s) => ({
           documents: s.documents.map((d) =>
-            d.id === id ? { ...d, ...patch } : d
+            d.id === id ? { ...d, ...patch } : d,
           ),
         })),
-      removeDocument: (id) =>
+      deleteDocument: (id) =>
         set((s) => ({ documents: s.documents.filter((d) => d.id !== id) })),
 
-      // ── Credentials ──────────────────────────────────
-      credentials: [],
       addCredential: (c) =>
         set((s) => ({
           credentials: [
-            { ...c, id: uid("cr"), updatedAt: now() },
             ...s.credentials,
+            { ...c, id: uid(), updatedAt: new Date().toISOString() },
           ],
         })),
       updateCredential: (id, patch) =>
         set((s) => ({
           credentials: s.credentials.map((c) =>
-            c.id === id ? { ...c, ...patch, updatedAt: now() } : c
+            c.id === id
+              ? { ...c, ...patch, updatedAt: new Date().toISOString() }
+              : c,
           ),
         })),
-      removeCredential: (id) =>
+      deleteCredential: (id) =>
         set((s) => ({ credentials: s.credentials.filter((c) => c.id !== id) })),
 
-      // ── Emergency contacts (seed) ──────────────────────
-      contacts: [
-        { id: "ec-115", name: "اورژانس", relationOrRole: "مرکز امداد پزشکی", phonePrimary: "115", iconLabel: "🏥", priorityOrder: 1, isSystemEmergency: true },
-        { id: "ec-110", name: "پلیس", relationOrRole: "مرکز برخورد پلیس", phonePrimary: "110", iconLabel: "🚓", priorityOrder: 2, isSystemEmergency: true },
-        { id: "ec-125", name: "آتش‌نشانی", relationOrRole: "مرکز امداد و نجات", phonePrimary: "125", iconLabel: "🚒", priorityOrder: 3, isSystemEmergency: true },
-        { id: "ec-123", name: "گاز", relationOrRole: "مرکز فوری پخش گاز", phonePrimary: "123", iconLabel: "🔥", priorityOrder: 4, isSystemEmergency: true },
-      ],
-      guides: [
-        {
-          id: "g-cpr",
-          title: "احیای قلبی-ریوی (CPR)",
-          category: "first_aid",
-          readingTimeMinutes: 2,
-          summary: "گام‌به‌گام انجام CPR برای بزرگسالان.",
-          steps: [
-            "امنیت محیط را بررسی کنید.",
-            "وضعیت هوشیاری را بررسی کنید.",
-            "اگر پاسخی نبود، با ۱۱۵ تماس بگیرید.",
-            "دست‌ها را روی مرکز قفسه سینه قرار دهید.",
-            "۱۰۰ تا ۱۲۰ فشار در دقیقه با عمق ۵ سانتی‌متر.",
-            "پس از هر ۳۰ فشار، ۲ تنفس مصنوعی بدهید.",
-          ],
-        },
-        {
-          id: "g-earthquake",
-          title: "اقدامات فوری در زلزله",
-          category: "earthquake",
-          readingTimeMinutes: 3,
-          summary: "نقاط امن خانه و مسیر خروج اضطراری.",
-          steps: [
-            "زیر میز محکم پناه بگیرید.",
-            "دور از پنجره و آینه باشید.",
-            "سر و گردن را بپوشانید.",
-            "شیر اصلی گاز را ببندید.",
-            "فیوز برق اصلی را خاموش کنید.",
-            "از آسانسور استفاده نکنید.",
-          ],
-        },
-      ],
-
-      // ── Backup / restore with encryption ──────────────
-      lastBackupAt: null,
       exportBackup: (passphrase: string) => {
-        const s = get();
-        const data = {
-          version: APP_VERSION,
+        const state = get();
+        const payload = JSON.stringify({
+          appVersion: APP_VERSION,
           exportedAt: new Date().toISOString(),
-          people: s.people,
-          bankCards: s.bankCards.map((c) => ({ ...c, cardImageDataUrl: undefined })),
-          bills: s.bills.map((b) => ({ ...b, imageDataUrl: undefined })),
-          documents: s.documents.map((d) => ({ ...d, imageUrls: [] })),
-          credentials: s.credentials,
-        };
-        const json = JSON.stringify(data, null, 2);
-        const encrypted = encryptBackup(json, passphrase);
-        set({ lastBackupAt: new Date().toLocaleString("fa-IR") });
-        return encrypted;
+          people: state.people,
+          bankCards: state.bankCards,
+          bills: state.bills,
+          documents: state.documents,
+          credentials: state.credentials,
+          contacts: state.contacts,
+        });
+        const ciphered = xorCipher(payload, passphrase);
+        const b64 = toBase64(ciphered);
+        set({ lastBackupAt: new Date().toISOString() });
+        return "ROOZ-V4:" + b64;
       },
-      importBackup: (encrypted, passphrase) => {
-        const json = decryptBackup(encrypted, passphrase);
-        if (!json) return false;
+
+      importBackup: (encrypted: string, passphrase: string) => {
         try {
+          if (!encrypted.startsWith("ROOZ-V4:")) return false;
+          const b64 = encrypted.slice("ROOZ-V4:".length);
+          const ciphered = fromBase64(b64.trim());
+          const json = xorCipher(ciphered, passphrase);
           const data = JSON.parse(json);
-          if (!data.version || !data.people) return false;
+          if (!data || typeof data !== "object") return false;
           set({
-            people: data.people ?? [],
-            bankCards: data.bankCards ?? [],
-            bills: data.bills ?? [],
-            documents: data.documents ?? [],
-            credentials: data.credentials ?? [],
+            people: data.people || [],
+            bankCards: data.bankCards || [],
+            bills: data.bills || [],
+            documents: data.documents || [],
+            credentials: data.credentials || [],
+            contacts:
+              data.contacts && data.contacts.length > 0
+                ? data.contacts
+                : SEED_CONTACTS,
+            lastBackupAt: new Date().toISOString(),
           });
           return true;
         } catch {
@@ -344,27 +307,27 @@ export const useApp = create<AppState>()(
       },
     }),
     {
-      name: "rooz-e-mobada-v3",
+      name: "rooz-mobada-v4",
       partialize: (s) => ({
         activated: s.activated,
         hasSeenOnboarding: s.hasSeenOnboarding,
         theme: s.theme,
         colorTheme: s.colorTheme,
         people: s.people,
-        activePersonId: s.activePersonId,
         bankCards: s.bankCards,
         bills: s.bills,
         documents: s.documents,
         credentials: s.credentials,
         lastBackupAt: s.lastBackupAt,
       }),
-    }
-  )
+    },
+  ),
 );
 
-// ── Selectors ────────────────────────────────────────────────
-export function useActivePerson(): Person | undefined {
-  const people = useApp((s) => s.people);
-  const activePersonId = useApp((s) => s.activePersonId);
-  return people.find((p) => p.id === activePersonId);
+// Selector hook: get the active person (or null) and stay reactive
+export function useActivePerson(): Person | null {
+  return useApp((s) => {
+    if (!s.activePersonId) return null;
+    return s.people.find((p) => p.id === s.activePersonId) ?? null;
+  });
 }

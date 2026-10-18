@@ -1,159 +1,170 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { Camera, ImagePlus, X, Check, FileImage } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { toPersian } from "@/lib/persian";
+import { useRef, useState, type ChangeEvent } from "react";
+import { Camera, ImagePlus, X } from "lucide-react";
 
 interface MultiImageUploaderProps {
-  images: string[];
-  onChange: (images: string[]) => void;
+  value: string[];
+  onChange: (urls: string[]) => void;
   label?: string;
-  maxImages?: number;
 }
 
-/**
- * MultiImageUploader — supports adding multiple images via:
- *  - Camera (capture attribute)
- *  - Gallery picker (multiple)
- * Used for multi-page documents (passport, contracts, etc.)
- */
+async function readFileAsDataURL(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+async function compressImage(dataUrl: string, maxDim = 900): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          const scale = Math.min(maxDim / width, maxDim / height);
+          width = Math.round(width * scale);
+          height = Math.round(height * scale);
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          resolve(dataUrl);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", 0.8));
+      } catch {
+        resolve(dataUrl);
+      }
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
 export function MultiImageUploader({
-  images,
+  value,
   onChange,
-  label = "تصاویر مدرک",
-  maxImages = 10,
+  label,
 }: MultiImageUploaderProps) {
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
-  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [draggingIdx, setDraggingIdx] = useState<number | null>(null);
 
-  const handleFiles = (files: FileList | null) => {
+  const addFiles = async (files: FileList | undefined) => {
     if (!files || files.length === 0) return;
-    const remaining = maxImages - images.length;
-    const toProcess = Array.from(files).slice(0, remaining);
-    toProcess.forEach((file) => {
-      if (!file.type.startsWith("image/")) return;
-      if (file.size > 10 * 1024 * 1024) return; // 10MB max
-      const reader = new FileReader();
-      reader.onload = () => {
-        const dataUrl = reader.result as string;
-        onChange([...images, dataUrl]);
-      };
-      reader.readAsDataURL(file);
-    });
+    const arr = Array.from(files).filter((f) => f.type.startsWith("image/"));
+    if (arr.length === 0) return;
+    const next = [...value];
+    for (const f of arr) {
+      try {
+        const raw = await readFileAsDataURL(f);
+        const c = await compressImage(raw);
+        next.push(c);
+      } catch {
+        // skip
+      }
+    }
+    onChange(next);
   };
 
-  const removeImage = (index: number) => {
-    onChange(images.filter((_, i) => i !== index));
+  const onCamera = (e: ChangeEvent<HTMLInputElement>) => {
+    void addFiles(e.target.files);
+    if (cameraInputRef.current) cameraInputRef.current.value = "";
   };
 
-  const reorder = (from: number, to: number) => {
-    if (from === to) return;
-    const next = [...images];
-    const [moved] = next.splice(from, 1);
-    next.splice(to, 0, moved);
+  const onGallery = (e: ChangeEvent<HTMLInputElement>) => {
+    void addFiles(e.target.files);
+    if (galleryInputRef.current) galleryInputRef.current.value = "";
+  };
+
+  const removeAt = (idx: number) => {
+    const next = value.filter((_, i) => i !== idx);
+    onChange(next);
+  };
+
+  const move = (from: number, to: number) => {
+    if (to < 0 || to >= value.length) return;
+    const next = [...value];
+    const [item] = next.splice(from, 1);
+    next.splice(to, 0, item);
     onChange(next);
   };
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-2">
-        <label className="text-xs font-semibold text-soft">
-          {label}
-          {images.length > 0 && (
-            <span className="mr-1.5 brand-text fa-num">
-              ({toPersian(images.length)} تصویر)
-            </span>
-          )}
-        </label>
-        {images.length < maxImages && (
-          <div className="flex gap-1">
-            <button
-              type="button"
-              onClick={() => cameraInputRef.current?.click()}
-              className="px-2.5 py-1.5 rounded-lg brand-bg-soft brand-text text-[11px] font-bold flex items-center gap-1.5 hover:opacity-80 transition-opacity"
-            >
-              <Camera className="w-3.5 h-3.5" />
-              دوربین
-            </button>
-            <button
-              type="button"
-              onClick={() => galleryInputRef.current?.click()}
-              className="px-2.5 py-1.5 rounded-lg brand-bg-soft brand-text text-[11px] font-bold flex items-center gap-1.5 hover:opacity-80 transition-opacity"
-            >
-              <ImagePlus className="w-3.5 h-3.5" />
-              گالری
-            </button>
-          </div>
-        )}
+    <div className="space-y-3">
+      {label && <p className="text-xs text-soft">{label}</p>}
+
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => cameraInputRef.current?.click()}
+          className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg brand-gradient text-white text-xs font-medium pressable"
+        >
+          <Camera size={14} /> دوربین
+        </button>
+        <button
+          type="button"
+          onClick={() => galleryInputRef.current?.click()}
+          className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg surface-input text-strong text-xs font-medium pressable"
+        >
+          <ImagePlus size={14} /> گالری
+        </button>
+        <input
+          ref={cameraInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          onChange={onCamera}
+          className="hidden"
+        />
+        <input
+          ref={galleryInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          onChange={onGallery}
+          className="hidden"
+        />
       </div>
 
-      {/* Hidden inputs */}
-      <input
-        ref={cameraInputRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        className="sr-only"
-        onChange={(e) => {
-          handleFiles(e.target.files);
-          e.target.value = "";
-        }}
-      />
-      <input
-        ref={galleryInputRef}
-        type="file"
-        accept="image/*"
-        multiple
-        className="sr-only"
-        onChange={(e) => {
-          handleFiles(e.target.files);
-          e.target.value = "";
-        }}
-      />
-
-      {images.length === 0 ? (
-        <div className="rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700 p-6 text-center">
-          <FileImage className="w-8 h-8 mx-auto mb-2 text-soft" />
-          <p className="text-[11px] text-soft">
-            با دوربین یا گالری تصویر اضافه کنید
-            <br />
-            (برای مدارک چندصفحه‌ای)
-          </p>
-        </div>
-      ) : (
+      {value.length > 0 && (
         <div className="grid grid-cols-3 gap-2">
-          {images.map((img, idx) => (
+          {value.map((url, idx) => (
             <div
               key={idx}
               draggable
-              onDragStart={() => setDragIndex(idx)}
-              onDragEnd={() => setDragIndex(null)}
+              onDragStart={() => setDraggingIdx(idx)}
               onDragOver={(e) => e.preventDefault()}
               onDrop={() => {
-                if (dragIndex !== null) reorder(dragIndex, idx);
-                setDragIndex(null);
+                if (draggingIdx !== null && draggingIdx !== idx) {
+                  move(draggingIdx, idx);
+                }
+                setDraggingIdx(null);
               }}
-              className="relative aspect-square rounded-xl overflow-hidden surface-card group"
+              className="relative aspect-square rounded-card-sm overflow-hidden border border-violet-200/40 cursor-move"
             >
               <img
-                src={img}
-                alt={`تصویر ${idx + 1}`}
-                className="w-full h-full object-cover"
+                src={url}
+                alt={`صفحه ${idx + 1}`}
+                className="absolute inset-0 h-full w-full object-cover"
               />
-              {/* Page number badge */}
-              <span className="absolute top-1 right-1 w-5 h-5 rounded-full brand-gradient text-white text-[10px] font-bold flex items-center justify-center fa-num">
-                {toPersian(idx + 1)}
+              <span className="absolute top-1 right-1 text-[10px] px-1.5 py-0.5 rounded-full bg-black/60 text-white">
+                {idx + 1}
               </span>
-              {/* Remove button */}
               <button
                 type="button"
-                onClick={() => removeImage(idx)}
-                className="absolute top-1 left-1 w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                aria-label="حذف تصویر"
+                onClick={() => removeAt(idx)}
+                aria-label="حذف"
+                className="absolute bottom-1 left-1 h-7 w-7 rounded-full bg-black/60 text-white flex items-center justify-center pressable"
               >
-                <X className="w-3 h-3" />
+                <X size={14} />
               </button>
             </div>
           ))}

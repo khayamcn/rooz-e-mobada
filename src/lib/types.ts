@@ -1,91 +1,122 @@
-/**
- * Rooz-e Mobada — Domain Types
- * Mirrors the 10-entity schema from the design brief, with
- * local-first fields (sync_status, conflict_data).
- */
+// Core types for "Rooz-e Mobada" personal vault app
 
-export type Role = "admin" | "editor" | "viewer";
-export type MemberStatus = "active" | "revoked";
-export type DocCategory =
-  | "identity"
-  | "insurance"
-  | "property"
-  | "medical"
-  | "vehicle"
-  | "other";
-export type GuideCategory =
-  | "first_aid"
-  | "earthquake"
-  | "fire"
-  | "home_utilities";
-export type SyncStatus = "synced" | "pending" | "conflict" | "failed";
-export type OperationType = "INSERT" | "UPDATE" | "SOFT_DELETE";
-export type OutboxStatus = "pending" | "in_progress" | "failed" | "conflict";
-export type FileTransferStatus =
-  | "local_only"
-  | "uploading"
-  | "uploaded"
-  | "downloading"
-  | "cached";
+export type Theme = "light" | "dark";
+export type ColorTheme = "violet" | "emerald" | "rose" | "blue";
+export type ScreenId =
+  | "home"
+  | "people"
+  | "documents"
+  | "cards"
+  | "bills"
+  | "passwords"
+  | "settings";
 
-export interface FamilyMemberProfile {
+export interface Person {
   id: string;
   fullName: string;
-  role: Role;
-  status: MemberStatus;
-  phone: string;
   relation: string;
-  avatarInitials: string;
-  isCurrentUser?: boolean;
-  lastActiveJalali: string;
-}
-
-export interface Family {
-  id: string;
-  title: string;
-  inviteCode: string;
-  ownerName: string;
-  members: FamilyMemberProfile[];
-}
-
-export interface VehiclePlate {
-  twoDigits: string;
-  letter: string;
-  threeDigits: string;
-  iranCode: string;
-}
-
-export interface Vehicle {
-  id: string;
-  title: string;
-  plate: VehiclePlate;
-  chassis: string;
-  thirdPartyInsCompany: string;
-  thirdPartyInsCode: string;
-  thirdPartyExpiryJalali: string;
-  thirdPartyDaysToExpiry: number;
-  bodyInsExpiryJalali: string | null;
-  bodyInsStatus: "valid" | "expiring" | "expired" | "none";
-  attachmentStatus: FileTransferStatus;
+  phone: string;
+  avatarDataUrl?: string;
+  birthDateJalali?: string;
+  bloodType?: string;
+  nationalId?: string;
   notes?: string;
-  syncStatus: SyncStatus;
+  createdAt: string;
 }
+
+export interface BankCard {
+  id: string;
+  personId: string;
+  bankName: string;
+  cardNumber: string;
+  accountNumber: string;
+  shiba: string;
+  cvv2: string;
+  expiryMonth: string;
+  expiryYear: string;
+  cardHolderName: string;
+  cardImageDataUrl?: string;
+  notes?: string;
+  createdAt: string;
+}
+
+export type BillType =
+  | "water"
+  | "electricity"
+  | "gas"
+  | "telephone"
+  | "mobile"
+  | "internet"
+  | "other";
+
+export interface Bill {
+  id: string;
+  personId: string;
+  billType: BillType;
+  provider: string;
+  billId: string;
+  paymentId: string;
+  isPaid: boolean;
+  imageDataUrl?: string;
+  notes?: string;
+  createdAt: string;
+}
+
+export type DocumentCategory =
+  | "identity"
+  | "vehicle"
+  | "property"
+  | "education"
+  | "insurance"
+  | "medical"
+  | "contract"
+  | "other";
 
 export interface DocumentItem {
   id: string;
+  personId: string;
   title: string;
-  category: DocCategory;
+  category: DocumentCategory;
+  documentType?: string;
   documentNumber: string;
-  issueJalali: string;
-  expiryJalali: string | null;
-  expiryDays: number | null; // <0 = expired, 0-30 = expiring soon, >30 = valid
-  physicalLocation: string;
+  issueDateJalali?: string;
+  expiryDateJalali?: string;
+  physicalLocation?: string;
+  notes?: string;
+  imageUrls: string[];
+  createdAt: string;
+
+  // Vehicle fields
+  licenseNumber?: string;
+  licenseSerial?: string;
+  licenseIssueDate?: string;
+  vinNumber?: string;
+  plateNumber?: string;
+  cardSerial?: string;
+  serialNumber?: string;
+  chassisNumber?: string;
+  engineNumber?: string;
+
+  // Property fields
+  contractNumber?: string;
+  trackingCode?: string;
+
+  // Insurance fields
+  insuranceNumber?: string;
+  insuranceType?: string;
+  insuranceDate?: string;
+}
+
+export interface Credential {
+  id: string;
+  personId: string;
+  serviceName: string;
+  username: string;
+  password: string;
+  url?: string;
   notes?: string;
   isPrivate: boolean;
-  ownerName: string;
-  attachmentLabel: string;
-  attachmentStatus: FileTransferStatus;
-  syncStatus: SyncStatus;
+  updatedAt: string;
 }
 
 export interface EmergencyContact {
@@ -96,54 +127,7 @@ export interface EmergencyContact {
   phoneSecondary?: string;
   address?: string;
   medicalOrUrgentNote?: string;
-  isPrivate: boolean;
-  isSystemEmergency?: boolean; // for 115, 110, 125...
-  iconLabel: string; // emoji or short label
+  iconLabel: string;
   priorityOrder: number;
-}
-
-export interface EmergencyGuide {
-  id: string;
-  title: string;
-  category: GuideCategory;
-  readingTimeMinutes: number;
-  summary: string;
-  isPinned: boolean;
-  isSystemDefault: boolean;
-  steps: string[];
-}
-
-export interface SyncOperation {
-  id: string;
-  entityTable: string;
-  entityLabel: string;
-  operationType: OperationType;
-  status: OutboxStatus;
-  retryCount: number;
-  createdAtJalali: string;
-  lastErrorFa?: string;
-}
-
-export interface ConflictRecord {
-  id: string;
-  entityLabel: string;
-  localVersion: {
-    author: string;
-    timestampJalali: string;
-    fields: { label: string; value: string }[];
-  };
-  serverVersion: {
-    author: string;
-    timestampJalali: string;
-    fields: { label: string; value: string }[];
-  };
-}
-
-export interface SyncMetadata {
-  connectionStatus: "online" | "offline";
-  serverReachable: boolean;
-  lastSuccessfulSyncJalali: string;
-  lastSuccessfulSyncTime: string;
-  pendingOperationsCount: number;
-  conflictsCount: number;
+  isSystemEmergency?: boolean;
 }

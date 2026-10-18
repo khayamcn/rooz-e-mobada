@@ -1,261 +1,333 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { Eye, EyeOff, KeyRound, Pencil, Plus, Trash2 } from "lucide-react";
 import { useApp } from "@/lib/store";
 import { ScreenHeader } from "@/components/shared/screen-header";
 import { AppCard } from "@/components/shared/ui";
-import { CopyChip } from "@/components/shared/copyable-field";
 import { Sheet } from "@/components/shared/sheet";
-import { toPersian } from "@/lib/persian";
-import {
-  Plus, Pencil, Trash2, KeyRound, Eye, EyeOff, Globe,
-} from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { CopyableField, CopyChip } from "@/components/shared/copyable-field";
 import type { Credential } from "@/lib/types";
 
+interface FormState {
+  id?: string;
+  personId: string;
+  serviceName: string;
+  username: string;
+  password: string;
+  url: string;
+  notes: string;
+  isPrivate: boolean;
+}
+
+const EMPTY_FORM: FormState = {
+  personId: "",
+  serviceName: "",
+  username: "",
+  password: "",
+  url: "",
+  notes: "",
+  isPrivate: false,
+};
+
 export function PasswordsScreen() {
-  const credentials = useApp((s) => s.credentials);
   const people = useApp((s) => s.people);
+  const credentials = useApp((s) => s.credentials);
   const addCredential = useApp((s) => s.addCredential);
   const updateCredential = useApp((s) => s.updateCredential);
-  const removeCredential = useApp((s) => s.removeCredential);
+  const deleteCredential = useApp((s) => s.deleteCredential);
 
-  const [sheetOpen, setSheetOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const [form, setForm] = useState({
-    personId: "",
-    serviceName: "",
-    username: "",
-    password: "",
-    url: "",
-    notes: "",
-  });
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [revealed, setRevealed] = useState<Record<string, boolean>>({});
+
+  const personName = (id: string) =>
+    people.find((p) => p.id === id)?.fullName || "نامشخص";
 
   const openAdd = () => {
     setForm({
-      personId: people[0]?.id ?? "",
-      serviceName: "",
-      username: "",
-      password: "",
-      url: "",
-      notes: "",
+      ...EMPTY_FORM,
+      personId: people[0]?.id || "",
     });
-    setEditingId(null);
-    setSheetOpen(true);
+    setOpen(true);
   };
 
-  useEffect(() => {
-    const handler = () => {
-      setForm({
-        personId: people[0]?.id ?? "",
-        serviceName: "",
-        username: "",
-        password: "",
-        url: "",
-        notes: "",
-      });
-      setEditingId(null);
-      setSheetOpen(true);
-    };
-    window.addEventListener("rooz-fab-add", handler);
-    return () => window.removeEventListener("rooz-fab-add", handler);
-  }, [people]);
-
-  const openEdit = (cr: Credential) => {
+  const openEdit = (c: Credential) => {
     setForm({
-      personId: cr.personId,
-      serviceName: cr.serviceName,
-      username: cr.username,
-      password: cr.password,
-      url: cr.url ?? "",
-      notes: cr.notes ?? "",
+      id: c.id,
+      personId: c.personId,
+      serviceName: c.serviceName,
+      username: c.username,
+      password: c.password,
+      url: c.url || "",
+      notes: c.notes || "",
+      isPrivate: c.isPrivate,
     });
-    setEditingId(cr.id);
-    setSheetOpen(true);
+    setOpen(true);
   };
 
   const handleSave = () => {
-    if (!form.serviceName.trim() || !form.personId) return;
-    const data = {
-      personId: form.personId,
+    if (!form.serviceName.trim() || !form.username.trim()) return;
+    const personId = form.personId || people[0]?.id;
+    if (!personId) return;
+    const payload = {
+      personId,
       serviceName: form.serviceName.trim(),
       username: form.username.trim(),
       password: form.password,
       url: form.url.trim() || undefined,
-      notes: form.notes || undefined,
-      isPrivate: true,
+      notes: form.notes.trim() || undefined,
+      isPrivate: form.isPrivate,
     };
-    if (editingId) {
-      updateCredential(editingId, data);
+    if (form.id) {
+      updateCredential(form.id, payload);
     } else {
-      addCredential(data);
+      addCredential(payload);
     }
-    setSheetOpen(false);
+    setOpen(false);
   };
 
-  const getPersonName = (id: string) => people.find((p) => p.id === id)?.fullName ?? "—";
+  const handleDelete = (id: string) => {
+    if (window.confirm("این رمز حذف شود؟")) deleteCredential(id);
+  };
 
   return (
-    <div className="flex flex-col bg-page min-h-full">
+    <div className="flex flex-col">
       <ScreenHeader
-        title="رمزها و نام‌های کاربری"
-        subtitle={`${toPersian(credentials.length)} مورد`}
-        icon={<KeyRound className="w-5 h-5 text-white" />}
+        title="رمزها"
+        subtitle={`${credentials.length} رمز ثبت شده`}
         trailing={
           <button
             type="button"
             onClick={openAdd}
-            disabled={people.length === 0}
-            className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors disabled:opacity-40"
+            className="h-10 w-10 rounded-full bg-white/20 text-white flex items-center justify-center pressable"
             aria-label="افزودن رمز"
           >
-            <Plus className="w-5 h-5 text-white" />
+            <Plus size={20} />
           </button>
         }
       />
 
-      {people.length === 0 ? (
-        <div className="px-4 mt-8">
-          <AppCard className="!p-6 text-center">
-            <p className="text-sm text-soft">برای افزودن رمز، ابتدا یک فرد ثبت کنید.</p>
-          </AppCard>
-        </div>
-      ) : (
-        <div className="px-4 -mt-3 mb-4">
-          {credentials.length === 0 ? (
-            <AppCard className="!p-6 text-center" onClick={openAdd}>
-              <Plus className="w-8 h-8 mx-auto mb-2 brand-text" />
-              <p className="text-sm font-bold text-strong">افزودن اولین رمز</p>
-              <p className="text-[11px] text-soft mt-1">نام کاربری و گذرواژه سایت‌ها</p>
-            </AppCard>
-          ) : (
-            <div className="space-y-2">
-              {credentials.map((cr, i) => (
-                <CredentialCard
-                  key={cr.id}
-                  credential={cr}
-                  personName={getPersonName(cr.personId)}
-                  onEdit={() => openEdit(cr)}
-                  onDelete={() => setDeleteConfirmId(cr.id)}
-                  delay={i * 0.05}
-                />
-              ))}
+      <div className="px-4 -mt-4 space-y-3">
+        {credentials.length === 0 && (
+          <AppCard asDiv className="!p-6 text-center">
+            <div className="mx-auto h-12 w-12 rounded-2xl brand-bg-soft text-brand-text flex items-center justify-center mb-3">
+              <KeyRound size={22} />
             </div>
-          )}
-        </div>
-      )}
+            <p className="text-sm font-bold text-strong mb-1">
+              رمزی ثبت نشده
+            </p>
+            <button
+              type="button"
+              onClick={openAdd}
+              className="text-xs text-brand-text pressable"
+            >
+              افزودن رمز
+            </button>
+          </AppCard>
+        )}
 
-      {/* Add/Edit sheet */}
+        {credentials.map((c) => {
+          const show = revealed[c.id];
+          return (
+            <AppCard key={c.id} asDiv className="!p-4">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="h-10 w-10 rounded-lg brand-gradient text-white flex items-center justify-center shrink-0">
+                  <KeyRound size={18} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-bold text-strong truncate">
+                    {c.serviceName}
+                  </div>
+                  <div className="text-[10px] text-soft truncate">
+                    {personName(c.personId)}
+                  </div>
+                </div>
+                {c.isPrivate && (
+                  <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-300 shrink-0">
+                    خصوصی
+                  </span>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <div className="surface-input rounded-card-sm p-2 flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-[10px] text-soft">نام کاربری</div>
+                    <div dir="ltr" className="text-xs font-mono text-strong truncate text-right">
+                      {c.username}
+                    </div>
+                  </div>
+                  <CopyChip value={c.username} size={28} label="کپی نام کاربری" />
+                </div>
+                <div className="surface-input rounded-card-sm p-2 flex items-center justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[10px] text-soft">رمز عبور</div>
+                    <div dir="ltr" className="text-xs font-mono text-strong truncate text-right">
+                      {show ? c.password : "•".repeat(Math.min(12, c.password.length))}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setRevealed((r) => ({ ...r, [c.id]: !r[c.id] }))
+                      }
+                      aria-label={show ? "مخفی کردن" : "نمایش رمز"}
+                      className="h-7 w-7 rounded-lg surface-input text-strong flex items-center justify-center pressable"
+                    >
+                      {show ? <EyeOff size={12} /> : <Eye size={12} />}
+                    </button>
+                    <CopyChip value={c.password} size={28} label="کپی رمز" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 mt-3">
+                <button
+                  type="button"
+                  onClick={() => openEdit(c)}
+                  className="flex-1 h-8 rounded-lg surface-input text-strong flex items-center justify-center gap-1.5 text-[11px] font-medium pressable"
+                >
+                  <Pencil size={12} /> ویرایش
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(c.id)}
+                  aria-label="حذف"
+                  className="h-8 w-8 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-600 flex items-center justify-center pressable"
+                >
+                  <Trash2 size={12} />
+                </button>
+              </div>
+            </AppCard>
+          );
+        })}
+      </div>
+
       <Sheet
-        open={sheetOpen}
-        onClose={() => setSheetOpen(false)}
-        title={editingId ? "ویرایش رمز" : "افزودن رمز جدید"}
+        open={open}
+        onClose={() => setOpen(false)}
+        title={form.id ? "ویرایش رمز" : "افزودن رمز"}
+        subtitle="اطلاعات حساب کاربری"
         footer={
-          <>
-            <button type="button" onClick={() => setSheetOpen(false)} className="flex-1 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-sm font-bold">انصراف</button>
-            <button type="button" onClick={handleSave} disabled={!form.serviceName.trim() || !form.personId} className="flex-1 py-2.5 rounded-xl brand-gradient text-white text-sm font-bold shadow-glow disabled:opacity-40">ذخیره</button>
-          </>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={!form.serviceName.trim() || !form.username.trim()}
+            className="w-full h-11 rounded-full brand-gradient text-white font-bold text-sm pressable shadow-glow"
+          >
+            ذخیره
+          </button>
         }
       >
-        <div className="space-y-4">
-          <Field label="فرد">
-            <select value={form.personId} onChange={(e) => setForm({ ...form, personId: e.target.value })} className="w-full surface-input rounded-xl px-3 py-2.5 text-sm text-strong focus:outline-none focus:ring-2 focus:ring-violet-500/40">
-              <option value="">انتخاب فرد...</option>
-              {people.map((p) => <option key={p.id} value={p.id}>{p.fullName}</option>)}
+        <div className="space-y-4 py-2">
+          <Field label="شخص">
+            <select
+              value={form.personId}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, personId: e.target.value }))
+              }
+            >
+              <option value="">انتخاب کنید</option>
+              {people.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.fullName}
+                </option>
+              ))}
             </select>
           </Field>
-          <Field label="نام سایت یا نرم‌افزار">
-            <input type="text" value={form.serviceName} onChange={(e) => setForm({ ...form, serviceName: e.target.value })} placeholder="مثلاً: اینستاگرام، گوگل، تلگرام..." className="w-full surface-input rounded-xl px-3 py-2.5 text-sm text-strong placeholder:text-soft focus:outline-none focus:ring-2 focus:ring-violet-500/40" />
+
+          <Field label="نام سرویس">
+            <input
+              type="text"
+              dir="rtl"
+              value={form.serviceName}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, serviceName: e.target.value }))
+              }
+              placeholder="مثلاً اینستاگرام، بانک اینترنتی"
+            />
           </Field>
-          <Field label="آدرس سایت (اختیاری)">
-            <input type="url" dir="ltr" value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} placeholder="https://example.com" className="w-full surface-input rounded-xl px-3 py-2.5 text-sm text-strong placeholder:text-soft focus:outline-none focus:ring-2 focus:ring-violet-500/40 text-left" />
+
+          <Field label="آدرس وب‌سایت (اختیاری)">
+            <input
+              type="text"
+              dir="ltr"
+              value={form.url}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, url: e.target.value }))
+              }
+              placeholder="https://example.com"
+              className="text-right font-mono"
+            />
           </Field>
+
           <Field label="نام کاربری">
-            <input type="text" dir="ltr" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} placeholder="username" className="w-full surface-input rounded-xl px-3 py-2.5 text-sm text-strong placeholder:text-soft focus:outline-none focus:ring-2 focus:ring-violet-500/40 text-left" />
+            <input
+              type="text"
+              dir="ltr"
+              value={form.username}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, username: e.target.value }))
+              }
+              placeholder="نام کاربری"
+              className="text-right font-mono"
+            />
           </Field>
-          <Field label="گذرواژه">
-            <input type="text" dir="ltr" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="••••••••" className="w-full surface-input rounded-xl px-3 py-2.5 text-sm text-strong placeholder:text-soft focus:outline-none focus:ring-2 focus:ring-violet-500/40 text-left" />
+
+          <Field label="رمز عبور">
+            <input
+              type="text"
+              dir="ltr"
+              value={form.password}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, password: e.target.value }))
+              }
+              placeholder="رمز عبور"
+              className="text-right font-mono"
+            />
           </Field>
+
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={form.isPrivate}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, isPrivate: e.target.checked }))
+              }
+              className="h-5 w-5 accent-violet-600"
+            />
+            <span className="text-sm text-strong">علامت‌گذاری به‌عنوان خصوصی</span>
+          </label>
+
           <Field label="یادداشت">
-            <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="مثلاً: سؤال امنیتی..." rows={2} className="w-full surface-input rounded-xl px-3 py-2.5 text-sm text-strong placeholder:text-soft focus:outline-none focus:ring-2 focus:ring-violet-500/40 resize-none" />
+            <textarea
+              dir="rtl"
+              rows={3}
+              value={form.notes}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, notes: e.target.value }))
+              }
+              placeholder="توضیحات..."
+            />
           </Field>
         </div>
       </Sheet>
-
-      {/* Delete confirmation */}
-      <AnimatePresence>
-        {deleteConfirmId && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setDeleteConfirmId(null)} className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-6">
-            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} onClick={(e) => e.stopPropagation()} className="surface-card rounded-3xl p-5 max-w-xs w-full text-center">
-              <div className="w-12 h-12 rounded-2xl bg-red-500/15 mx-auto mb-3 flex items-center justify-center"><Trash2 className="w-6 h-6 text-red-500" /></div>
-              <p className="text-sm font-bold text-strong mb-1">حذف رمز؟</p>
-              <p className="text-[11px] text-soft mb-4">این عمل قابل بازگشت نیست.</p>
-              <div className="flex gap-2">
-                <button type="button" onClick={() => setDeleteConfirmId(null)} className="flex-1 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-sm font-bold">انصراف</button>
-                <button type="button" onClick={() => { removeCredential(deleteConfirmId); setDeleteConfirmId(null); }} className="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-sm font-bold hover:bg-red-600 transition-colors">حذف</button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }
 
-function CredentialCard({ credential, personName, onEdit, onDelete, delay }: {
-  credential: Credential;
-  personName: string;
-  onEdit: () => void;
-  onDelete: () => void;
-  delay: number;
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
 }) {
-  const [showPassword, setShowPassword] = useState(false);
-
-  return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay }}>
-      <AppCard className="!p-3">
-        <div className="flex items-start gap-2 mb-2">
-          <span className="w-9 h-9 rounded-lg brand-bg-soft flex items-center justify-center text-base shrink-0">🔐</span>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-strong truncate">{credential.serviceName}</p>
-            {credential.url && (
-              <a href={credential.url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-soft truncate flex items-center gap-0.5" dir="ltr">
-                <Globe className="w-2.5 h-2.5" />
-                {credential.url}
-              </a>
-            )}
-            <p className="text-[9px] text-soft">{personName}</p>
-          </div>
-          <div className="flex gap-1">
-            <button type="button" onClick={onEdit} className="w-7 h-7 rounded-lg brand-bg-soft brand-text flex items-center justify-center" aria-label="ویرایش"><Pencil className="w-3 h-3" /></button>
-            <button type="button" onClick={onDelete} className="w-7 h-7 rounded-lg bg-red-500/10 text-red-500 flex items-center justify-center" aria-label="حذف"><Trash2 className="w-3 h-3" /></button>
-          </div>
-        </div>
-        <div className="space-y-1">
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] text-soft w-14 shrink-0">نام کاربری</span>
-            <span className="text-[11px] text-strong font-mono truncate flex-1" dir="ltr">{credential.username}</span>
-            <CopyChip value={credential.username} label="نام کاربری" size="sm" />
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] text-soft w-14 shrink-0">گذرواژه</span>
-            <span className="text-[11px] text-strong font-mono flex-1 truncate" dir="ltr">{showPassword ? credential.password : "••••••••"}</span>
-            <button type="button" onClick={() => setShowPassword((v) => !v)} className="shrink-0 w-7 h-7 rounded-lg brand-bg-soft brand-text flex items-center justify-center" aria-label="نمایش/پنهان">
-              {showPassword ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-            </button>
-            <CopyChip value={credential.password} label="گذرواژه" size="sm" />
-          </div>
-        </div>
-      </AppCard>
-    </motion.div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-xs font-semibold text-soft mb-1.5">{label}</label>
+      <label className="text-xs text-soft block mb-1.5">{label}</label>
       {children}
     </div>
   );

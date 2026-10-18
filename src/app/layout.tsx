@@ -1,61 +1,56 @@
 import type { Metadata, Viewport } from "next";
-import { Vazirmatn } from "next/font/google";
 import "./globals.css";
+import { ThemeBootstrap } from "@/components/theme-bootstrap";
 import { Toaster } from "@/components/ui/toaster";
 
-const vazirmatn = Vazirmatn({
-  subsets: ["arabic", "latin"],
-  variable: "--font-vazirmatn",
-  display: "swap",
-  weight: ["300", "400", "500", "600", "700", "800"],
-});
-
 export const metadata: Metadata = {
-  title: "روز مبادا | پرونده اضطراری خانواده",
-  description:
-    "پرونده دیجیتال اضطراری خانواده؛ دسترسی آفلاین به مدارک، تماس‌های ضروری، راهنماهای بحران و همگام‌سازی امن برای لحظات بحرانی.",
-  keywords: [
-    "روز مبادا",
-    "پرونده اضطراری",
-    "مدارک خانواده",
-    "تماس‌های اضطراری",
-    "راهنمای بحران",
-    "آفلاین",
-    "بازار",
-    "اندروید",
-  ],
-  authors: [{ name: "Rooz-e Mobada Team" }],
+  title: "روز مبادا",
+  description: "مخزن امن اطلاعات ضروری خانواده — آفلاین و خصوصی",
   manifest: "/manifest.webmanifest",
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "black-translucent",
-    title: "روز مبادا",
-  },
-  icons: {
-    icon: "/icon-192.png",
-    apple: "/icon-192.png",
-  },
-  applicationName: "روز مبادا",
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0F172A",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  viewportFit: "cover",
+  themeColor: "#0F172A",
 };
+
+// Inline script: read theme/colorTheme from localStorage BEFORE React hydrates.
+// Prevents theme flash on first paint.
+const themeBootstrapScript = `
+(function () {
+  try {
+    var raw = localStorage.getItem("rooz-mobada-v4");
+    if (!raw) return;
+    var parsed = JSON.parse(raw);
+    var state = parsed && parsed.state ? parsed.state : {};
+    var theme = state.theme || "light";
+    var colorTheme = state.colorTheme || "violet";
+    var html = document.documentElement;
+    if (theme === "dark") html.classList.add("dark");
+    else html.classList.remove("dark");
+    html.setAttribute("data-theme", colorTheme);
+  } catch (e) {
+    // ignore — fall back to defaults
+  }
+})();
+`;
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="fa" dir="rtl" suppressHydrationWarning>
-      <body
-        className={`${vazirmatn.variable} font-vazir antialiased bg-slate-100 text-slate-900`}
-      >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
+        <meta name="format-detection" content="telephone=no" />
+        <meta name="color-scheme" content="light dark" />
+      </head>
+      <body className="bg-page text-strong antialiased">
+        <ThemeBootstrap />
         {children}
         <Toaster />
       </body>

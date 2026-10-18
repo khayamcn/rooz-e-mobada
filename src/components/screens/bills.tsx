@@ -1,213 +1,502 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useMemo, useState } from "react";
+import {
+  Flame,
+  Globe,
+  Phone,
+  Plus,
+  Receipt,
+  Smartphone,
+  Trash2,
+  Zap,
+  Pencil,
+  type LucideIcon,
+  Droplets,
+  FileText,
+} from "lucide-react";
 import { useApp } from "@/lib/store";
 import { ScreenHeader } from "@/components/shared/screen-header";
 import { AppCard } from "@/components/shared/ui";
-import { CopyChip } from "@/components/shared/copyable-field";
-import { MultiImageUploader } from "@/components/shared/multi-image-uploader";
 import { Sheet } from "@/components/shared/sheet";
-import {
-  Plus, Pencil, Trash2, Receipt, Droplet, Zap, Flame, Phone, Smartphone,
-  Wifi, MoreHorizontal,
-} from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
-import type { BillType, Bill } from "@/lib/types";
+import { ImageUploader } from "@/components/shared/image-uploader";
+import { CopyableField, CopyChip } from "@/components/shared/copyable-field";
+import type { Bill, BillType } from "@/lib/types";
 
-const BILL_TYPES: { id: BillType; label: string; icon: typeof Receipt; emoji: string }[] = [
-  { id: "water", label: "آب", icon: Droplet, emoji: "💧" },
-  { id: "electricity", label: "برق", icon: Zap, emoji: "⚡" },
-  { id: "gas", label: "گاز", icon: Flame, emoji: "🔥" },
-  { id: "telephone", label: "تلفن", icon: Phone, emoji: "📞" },
-  { id: "mobile", label: "موبایل", icon: Smartphone, emoji: "📱" },
-  { id: "internet", label: "اینترنت", icon: Wifi, emoji: "🌐" },
-  { id: "other", label: "سایر", icon: MoreHorizontal, emoji: "📄" },
+interface TypeDef {
+  id: BillType | "all";
+  label: string;
+  Icon: LucideIcon;
+  color: string;
+}
+
+const TYPES: TypeDef[] = [
+  { id: "all", label: "همه", Icon: Receipt, color: "from-violet-400 to-purple-600" },
+  { id: "water", label: "آب", Icon: Droplets, color: "from-cyan-400 to-blue-600" },
+  { id: "electricity", label: "برق", Icon: Zap, color: "from-amber-400 to-yellow-600" },
+  { id: "gas", label: "گاز", Icon: Flame, color: "from-orange-400 to-red-600" },
+  { id: "telephone", label: "تلفن", Icon: Phone, color: "from-emerald-400 to-green-600" },
+  { id: "mobile", label: "موبایل", Icon: Smartphone, color: "from-pink-400 to-rose-600" },
+  { id: "internet", label: "اینترنت", Icon: Globe, color: "from-indigo-400 to-purple-600" },
+  { id: "other", label: "سایر", Icon: FileText, color: "from-slate-400 to-slate-600" },
 ];
 
+interface FormState {
+  id?: string;
+  personId: string;
+  billType: BillType;
+  provider: string;
+  billId: string;
+  paymentId: string;
+  isPaid: boolean;
+  imageDataUrl?: string;
+  notes: string;
+}
+
+const EMPTY_FORM: FormState = {
+  personId: "",
+  billType: "electricity",
+  provider: "",
+  billId: "",
+  paymentId: "",
+  isPaid: false,
+  notes: "",
+};
+
 export function BillsScreen() {
-  const bills = useApp((s) => s.bills);
   const people = useApp((s) => s.people);
+  const bills = useApp((s) => s.bills);
   const addBill = useApp((s) => s.addBill);
   const updateBill = useApp((s) => s.updateBill);
-  const removeBill = useApp((s) => s.removeBill);
+  const deleteBill = useApp((s) => s.deleteBill);
 
   const [activeType, setActiveType] = useState<BillType | "all">("all");
-  const [sheetOpen, setSheetOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const [viewingBill, setViewingBill] = useState<Bill | null>(null);
-  const [form, setForm] = useState({
-    personId: "",
-    billType: "water" as BillType,
-    provider: "",
-    billId: "",
-    paymentId: "",
-    isPaid: false,
-    imageUrls: [] as string[],
-    notes: "",
-  });
+  const [open, setOpen] = useState(false);
+  const [viewBill, setViewBill] = useState<Bill | null>(null);
+  const [form, setForm] = useState<FormState>(EMPTY_FORM);
+
+  const counts = useMemo(() => {
+    const c: Record<string, number> = { all: bills.length };
+    for (const b of bills) {
+      c[b.billType] = (c[b.billType] || 0) + 1;
+    }
+    return c;
+  }, [bills]);
+
+  const filtered = useMemo(
+    () =>
+      activeType === "all"
+        ? bills
+        : bills.filter((b) => b.billType === activeType),
+    [bills, activeType],
+  );
+
+  const personName = useMemo(
+    () => (id: string) => people.find((p) => p.id === id)?.fullName || "نامشخص",
+    [people],
+  );
 
   const openAdd = () => {
-    setForm({ personId: people[0]?.id ?? "", billType: "water", provider: "", billId: "", paymentId: "", isPaid: false, imageUrls: [], notes: "" });
-    setEditingId(null);
-    setSheetOpen(true);
+    setForm({
+      ...EMPTY_FORM,
+      personId: people[0]?.id || "",
+    });
+    setOpen(true);
   };
 
-  useEffect(() => {
-    const handler = () => {
-      setForm({ personId: people[0]?.id ?? "", billType: "water", provider: "", billId: "", paymentId: "", isPaid: false, imageUrls: [], notes: "" });
-      setEditingId(null);
-      setSheetOpen(true);
-    };
-    window.addEventListener("rooz-fab-add", handler);
-    return () => window.removeEventListener("rooz-fab-add", handler);
-  }, [people]);
-
-  const openEdit = (bill: Bill) => {
-    setForm({ personId: bill.personId, billType: bill.billType, provider: bill.provider, billId: bill.billId, paymentId: bill.paymentId, isPaid: bill.isPaid, imageUrls: bill.imageDataUrl ? [bill.imageDataUrl] : [], notes: bill.notes ?? "" });
-    setEditingId(bill.id);
-    setSheetOpen(true);
+  const openEdit = (b: Bill) => {
+    setForm({
+      id: b.id,
+      personId: b.personId,
+      billType: b.billType,
+      provider: b.provider,
+      billId: b.billId,
+      paymentId: b.paymentId,
+      isPaid: b.isPaid,
+      imageDataUrl: b.imageDataUrl,
+      notes: b.notes || "",
+    });
+    setOpen(true);
   };
 
   const handleSave = () => {
-    if (!form.provider.trim() || !form.personId) return;
-    const data = { personId: form.personId, billType: form.billType, provider: form.provider.trim(), billId: form.billId || "—", paymentId: form.paymentId || "—", isPaid: form.isPaid, imageDataUrl: form.imageUrls[0], notes: form.notes || undefined };
-    if (editingId) { updateBill(editingId, data); } else { addBill(data); }
-    setSheetOpen(false);
+    if (!form.billId.trim() && !form.paymentId.trim()) return;
+    const personId = form.personId || people[0]?.id;
+    if (!personId) return;
+    const payload = {
+      personId,
+      billType: form.billType,
+      provider: form.provider.trim(),
+      billId: form.billId.trim(),
+      paymentId: form.paymentId.trim(),
+      isPaid: form.isPaid,
+      imageDataUrl: form.imageDataUrl,
+      notes: form.notes.trim() || undefined,
+    };
+    if (form.id) {
+      updateBill(form.id, payload);
+    } else {
+      addBill(payload);
+    }
+    setOpen(false);
   };
 
-  const filteredBills = activeType === "all" ? bills : bills.filter((b) => b.billType === activeType);
-  const getPersonName = (id: string) => people.find((p) => p.id === id)?.fullName ?? "—";
-  const unpaidCount = bills.filter((b) => !b.isPaid).length;
+  const handleDelete = (id: string) => {
+    if (window.confirm("این قبض حذف شود؟")) deleteBill(id);
+  };
 
   return (
-    <div className="flex flex-col bg-page min-h-full">
-      <ScreenHeader title="قبوض" subtitle={unpaidCount > 0 ? `${unpaidCount} پرداخت‌نشده` : `${bills.length} قبض`} icon={<Receipt className="w-5 h-5 text-white" />}
-        trailing={<button type="button" onClick={openAdd} disabled={people.length === 0} className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors disabled:opacity-40" aria-label="افزودن قبض"><Plus className="w-5 h-5 text-white" /></button>}
+    <div className="flex flex-col">
+      <ScreenHeader
+        title="قبوض"
+        subtitle={`${bills.length} قبض ثبت شده`}
+        trailing={
+          <button
+            type="button"
+            onClick={openAdd}
+            className="h-10 w-10 rounded-full bg-white/20 text-white flex items-center justify-center pressable"
+            aria-label="افزودن قبض"
+          >
+            <Plus size={20} />
+          </button>
+        }
       />
 
-      {people.length === 0 ? (
-        <div className="px-4 mt-8"><AppCard className="!p-6 text-center"><p className="text-sm text-soft">برای افزودن قبض، ابتدا یک فرد ثبت کنید.</p></AppCard></div>
-      ) : (
-        <div className="flex flex-1 overflow-hidden">
-          {/* Vertical sidebar */}
-          <div className="w-20 shrink-0 border-l border-slate-200/50 dark:border-white/5 overflow-y-auto no-scrollbar bg-page">
-            <button type="button" onClick={() => setActiveType("all")} className={`w-full p-2.5 flex flex-col items-center gap-1 transition-colors border-r-2 ${activeType === "all" ? "brand-bg-soft brand-text border-r-brand-500" : "text-soft border-r-transparent"}`}>
-              <Receipt className="w-4 h-4" /><span className="text-[9px] font-bold">همه</span><span className="text-[8px] opacity-60">{bills.length}</span>
-            </button>
-            {BILL_TYPES.map((bt) => {
-              const count = bills.filter((b) => b.billType === bt.id).length;
-              const Icon = bt.icon;
-              return (
-                <button key={bt.id} type="button" onClick={() => setActiveType(bt.id)} className={`w-full p-2.5 flex flex-col items-center gap-1 transition-colors border-r-2 ${activeType === bt.id ? "brand-bg-soft brand-text border-r-brand-500" : "text-soft border-r-transparent"}`}>
-                  <Icon className="w-4 h-4" /><span className="text-[9px] font-bold text-center leading-tight">{bt.label}</span>
-                  {count > 0 && <span className="text-[8px] opacity-60">{count}</span>}
-                </button>
-              );
-            })}
-          </div>
+      <div className="flex flex-1 min-h-0">
+        <aside
+          dir="rtl"
+          className="w-24 shrink-0 border-l border-violet-100/40 dark:border-white/5 overflow-y-auto no-scrollbar py-2"
+        >
+          {TYPES.map((t) => {
+            const isActive = activeType === t.id;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setActiveType(t.id)}
+                className={`w-full flex flex-col items-center gap-1 py-2.5 px-1 transition-colors ${
+                  isActive ? "brand-bg-soft" : "hover:bg-violet-50/50 dark:hover:bg-white/5"
+                }`}
+              >
+                <div
+                  className={`h-8 w-8 rounded-lg bg-gradient-to-br ${t.color} text-white flex items-center justify-center`}
+                >
+                  <t.Icon size={15} />
+                </div>
+                <span
+                  className={`text-[10px] font-medium ${
+                    isActive ? "text-brand-text" : "text-soft"
+                  }`}
+                >
+                  {t.label}
+                </span>
+                <span className="text-[9px] text-faint">
+                  {counts[t.id] || 0}
+                </span>
+              </button>
+            );
+          })}
+        </aside>
 
-          {/* Bills list */}
-          <div className="flex-1 overflow-y-auto no-scrollbar px-3 pb-4">
-            {filteredBills.length === 0 ? (
-              <AppCard className="!p-6 text-center mt-4" onClick={openAdd}><Plus className="w-8 h-8 mx-auto mb-2 brand-text" /><p className="text-sm font-bold text-strong">افزودن اولین قبض</p><p className="text-[11px] text-soft mt-1">آب، برق، گاز، تلفن...</p></AppCard>
-            ) : (
-              <div className="space-y-2 pt-3">
-                {filteredBills.map((bill, i) => {
-                  const bt = BILL_TYPES.find((t) => t.id === bill.billType);
-                  return (
-                    <motion.div key={bill.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
-                      <AppCard asDiv onClick={() => setViewingBill(bill)} className="!p-3">
-                        <div className="flex items-start gap-2 mb-2">
-                          <span className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-base shrink-0">{bt?.emoji ?? "📄"}</span>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <p className="text-sm font-bold text-strong truncate">{bill.provider}</p>
-                              <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${bill.isPaid ? "bg-emerald-500/15 text-emerald-500" : "bg-amber-500/15 text-amber-500"}`}>{bill.isPaid ? "پرداخت‌شده" : "پرداخت‌نشده"}</span>
-                            </div>
-                            <p className="text-[10px] text-soft">{getPersonName(bill.personId)}</p>
-                          </div>
-                          <div className="flex flex-col gap-1">
-                            <button type="button" onClick={(e) => { e.stopPropagation(); openEdit(bill); }} className="w-7 h-7 rounded-lg brand-bg-soft brand-text flex items-center justify-center" aria-label="ویرایش"><Pencil className="w-3 h-3" /></button>
-                            <button type="button" onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(bill.id); }} className="w-7 h-7 rounded-lg bg-red-500/10 text-red-500 flex items-center justify-center" aria-label="حذف"><Trash2 className="w-3 h-3" /></button>
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2 text-[11px]">
-                          <div className="flex items-center gap-1"><span className="text-soft">شناسه قبض:</span><span className="text-strong font-mono truncate" dir="ltr">{bill.billId}</span><CopyChip value={bill.billId} label="شناسه قبض" size="sm" /></div>
-                          <div className="flex items-center gap-1"><span className="text-soft">پرداخت:</span><span className="text-strong font-mono truncate" dir="ltr">{bill.paymentId}</span><CopyChip value={bill.paymentId} label="شناسه پرداخت" size="sm" /></div>
-                        </div>
-                      </AppCard>
-                    </motion.div>
-                  );
-                })}
+        <div className="flex-1 px-3 py-3 overflow-y-auto no-scrollbar">
+          {filtered.length === 0 ? (
+            <AppCard asDiv className="!p-6 text-center">
+              <div className="mx-auto h-12 w-12 rounded-2xl brand-bg-soft text-brand-text flex items-center justify-center mb-3">
+                <Receipt size={22} />
               </div>
-            )}
-          </div>
-        </div>
-      )}
+              <p className="text-sm font-bold text-strong mb-1">
+                قبضی در این دسته نیست
+              </p>
+              <button
+                type="button"
+                onClick={openAdd}
+                className="text-xs text-brand-text pressable"
+              >
+                افزودن قبض
+              </button>
+            </AppCard>
+          ) : (
+            <div className="space-y-2">
+              {filtered.map((b) => {
+                const type = TYPES.find((t) => t.id === b.billType);
+                return (
+                  <AppCard key={b.id} asDiv className="!p-3">
+                    <button
+                      type="button"
+                      onClick={() => setViewBill(b)}
+                      className="w-full text-right flex items-center gap-3"
+                    >
+                      <div
+                        className={`h-10 w-10 rounded-lg bg-gradient-to-br ${type?.color || "from-violet-400 to-purple-600"} text-white flex items-center justify-center shrink-0`}
+                      >
+                        {type?.Icon ? <type.Icon size={18} /> : <Receipt size={18} />}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-bold text-strong truncate">
+                          {b.provider || type?.label || "قبض"}
+                        </div>
+                        <div className="text-[10px] text-soft truncate">
+                          {personName(b.personId)}
+                        </div>
+                      </div>
+                      <span
+                        className={`text-[10px] px-2 py-0.5 rounded-full shrink-0 ${
+                          b.isPaid
+                            ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300"
+                            : "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
+                        }`}
+                      >
+                        {b.isPaid ? "پرداخت شده" : "پرداخت نشده"}
+                      </span>
+                    </button>
 
-      {/* Add/Edit sheet */}
-      <Sheet open={sheetOpen} onClose={() => setSheetOpen(false)} title={editingId ? "ویرایش قبض" : "افزودن قبض جدید"}
-        footer={<><button type="button" onClick={() => setSheetOpen(false)} className="flex-1 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-sm font-bold">انصراف</button><button type="button" onClick={handleSave} disabled={!form.provider.trim() || !form.personId} className="flex-1 py-2.5 rounded-xl brand-gradient text-white text-sm font-bold shadow-glow disabled:opacity-40">ذخیره</button></>}
+                    <div className="grid grid-cols-2 gap-2 mt-3">
+                      <div className="surface-input rounded-card-sm p-2 flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="text-[10px] text-soft">شناسه قبض</div>
+                          <div dir="ltr" className="text-xs font-mono text-strong truncate text-right">
+                            {b.billId || "—"}
+                          </div>
+                        </div>
+                        {b.billId && <CopyChip value={b.billId} size={28} label="کپی شناسه قبض" />}
+                      </div>
+                      <div className="surface-input rounded-card-sm p-2 flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="text-[10px] text-soft">شناسه پرداخت</div>
+                          <div dir="ltr" className="text-xs font-mono text-strong truncate text-right">
+                            {b.paymentId || "—"}
+                          </div>
+                        </div>
+                        {b.paymentId && <CopyChip value={b.paymentId} size={28} label="کپی شناسه پرداخت" />}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 mt-3">
+                      <button
+                        type="button"
+                        onClick={() => openEdit(b)}
+                        className="flex-1 h-8 rounded-lg surface-input text-strong flex items-center justify-center gap-1.5 text-[11px] font-medium pressable"
+                      >
+                        <Pencil size={12} /> ویرایش
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(b.id)}
+                        aria-label="حذف"
+                        className="h-8 w-8 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-600 flex items-center justify-center pressable"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  </AppCard>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <Sheet
+        open={open}
+        onClose={() => setOpen(false)}
+        title={form.id ? "ویرایش قبض" : "افزودن قبض"}
+        subtitle="اطلاعات قبض را وارد کنید"
+        footer={
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={!form.billId.trim() && !form.paymentId.trim()}
+            className="w-full h-11 rounded-full brand-gradient text-white font-bold text-sm pressable shadow-glow"
+          >
+            ذخیره
+          </button>
+        }
       >
-        <div className="space-y-4">
-          <Field label="فرد"><select value={form.personId} onChange={(e) => setForm({ ...form, personId: e.target.value })} className="w-full surface-input rounded-xl px-3 py-2.5 text-sm text-strong focus:outline-none focus:ring-2 focus:ring-violet-500/40"><option value="">انتخاب فرد...</option>{people.map((p) => <option key={p.id} value={p.id}>{p.fullName}</option>)}</select></Field>
+        <div className="space-y-4 py-2">
+          <Field label="شخص">
+            <select
+              value={form.personId}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, personId: e.target.value }))
+              }
+            >
+              <option value="">انتخاب کنید</option>
+              {people.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.fullName}
+                </option>
+              ))}
+            </select>
+          </Field>
+
           <Field label="نوع قبض">
             <div className="grid grid-cols-4 gap-2">
-              {BILL_TYPES.map((bt) => (
-                <button key={bt.id} type="button" onClick={() => setForm({ ...form, billType: bt.id })} className={`py-2 rounded-xl text-[10px] font-bold border transition-all flex flex-col items-center gap-1 ${form.billType === bt.id ? "brand-gradient text-white border-transparent" : "surface-card text-strong border-transparent"}`}><span className="text-base">{bt.emoji}</span>{bt.label}</button>
+              {TYPES.filter((t) => t.id !== "all").map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() =>
+                    setForm((f) => ({ ...f, billType: t.id as BillType }))
+                  }
+                  className={`flex flex-col items-center gap-1 px-1 py-2 rounded-lg text-[10px] font-medium pressable ${
+                    form.billType === t.id
+                      ? "brand-gradient text-white"
+                      : "surface-input text-soft"
+                  }`}
+                >
+                  <t.Icon size={16} />
+                  {t.label}
+                </button>
               ))}
             </div>
           </Field>
-          <Field label="شرکت/ارائه‌دهنده"><input type="text" value={form.provider} onChange={(e) => setForm({ ...form, provider: e.target.value })} placeholder="مثلاً: آبفا، توانیر..." className="w-full surface-input rounded-xl px-3 py-2.5 text-sm text-strong placeholder:text-soft focus:outline-none focus:ring-2 focus:ring-violet-500/40" /></Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="شناسه قبض"><input type="text" dir="ltr" value={form.billId} onChange={(e) => setForm({ ...form, billId: e.target.value })} placeholder="شناسه قبض" className="w-full surface-input rounded-xl px-3 py-2.5 text-sm text-strong placeholder:text-soft focus:outline-none focus:ring-2 focus:ring-violet-500/40 text-left" /></Field>
-            <Field label="شناسه پرداخت"><input type="text" dir="ltr" value={form.paymentId} onChange={(e) => setForm({ ...form, paymentId: e.target.value })} placeholder="شناسه پرداخت" className="w-full surface-input rounded-xl px-3 py-2.5 text-sm text-strong placeholder:text-soft focus:outline-none focus:ring-2 focus:ring-violet-500/40 text-left" /></Field>
-          </div>
-          <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={form.isPaid} onChange={(e) => setForm({ ...form, isPaid: e.target.checked })} className="w-4 h-4 rounded accent-violet-500" /><span className="text-xs text-soft">پرداخت‌شده</span></label>
-          <MultiImageUploader images={form.imageUrls} onChange={(imgs) => setForm({ ...form, imageUrls: imgs })} label="تصویر قبض" maxImages={3} />
-          <Field label="یادداشت"><textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="توضیحات..." rows={2} className="w-full surface-input rounded-xl px-3 py-2.5 text-sm text-strong placeholder:text-soft focus:outline-none focus:ring-2 focus:ring-violet-500/40 resize-none" /></Field>
+
+          <Field label="ارائه‌دهنده">
+            <input
+              type="text"
+              dir="rtl"
+              value={form.provider}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, provider: e.target.value }))
+              }
+              placeholder="مثلاً شرکت آب منطقه‌ای"
+            />
+          </Field>
+
+          <Field label="شناسه قبض">
+            <input
+              type="tel"
+              dir="ltr"
+              value={form.billId}
+              onChange={(e) => {
+                let v = e.target.value.replace(/[^0-9]/g, "");
+                if (v.length > 13) v = v.slice(0, 13);
+                setForm((f) => ({ ...f, billId: v }));
+              }}
+              placeholder="شناسه قبض"
+              inputMode="numeric"
+              className="text-right font-mono"
+            />
+          </Field>
+
+          <Field label="شناسه پرداخت">
+            <input
+              type="tel"
+              dir="ltr"
+              value={form.paymentId}
+              onChange={(e) => {
+                let v = e.target.value.replace(/[^0-9]/g, "");
+                if (v.length > 13) v = v.slice(0, 13);
+                setForm((f) => ({ ...f, paymentId: v }));
+              }}
+              placeholder="شناسه پرداخت"
+              inputMode="numeric"
+              className="text-right font-mono"
+            />
+          </Field>
+
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={form.isPaid}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, isPaid: e.target.checked }))
+              }
+              className="h-5 w-5 accent-violet-600"
+            />
+            <span className="text-sm text-strong">پرداخت شده</span>
+          </label>
+
+          <Field label="تصویر قبض">
+            <ImageUploader
+              value={form.imageDataUrl}
+              onChange={(url) =>
+                setForm((f) => ({ ...f, imageDataUrl: url }))
+              }
+            />
+          </Field>
+
+          <Field label="یادداشت">
+            <textarea
+              dir="rtl"
+              rows={3}
+              value={form.notes}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, notes: e.target.value }))
+              }
+              placeholder="توضیحات..."
+            />
+          </Field>
         </div>
       </Sheet>
 
-      {/* Bill viewer popup */}
-      <Sheet open={!!viewingBill} onClose={() => setViewingBill(null)} title={viewingBill?.provider ?? ""} subtitle={viewingBill ? getPersonName(viewingBill.personId) : undefined}>
-        {viewingBill && (
-          <div className="space-y-3">
-            {viewingBill.imageDataUrl && (
-              <div className="rounded-2xl overflow-hidden surface-card"><img src={viewingBill.imageDataUrl} alt={viewingBill.provider} className="w-full h-48 object-contain" /></div>
+      <Sheet
+        open={!!viewBill}
+        onClose={() => setViewBill(null)}
+        title={viewBill?.provider || "قبض"}
+        subtitle={viewBill ? personName(viewBill.personId) : undefined}
+      >
+        {viewBill && (
+          <div className="space-y-3 py-2">
+            {viewBill.imageDataUrl && (
+              <div className="rounded-card overflow-hidden border border-violet-200/40">
+                <img
+                  src={viewBill.imageDataUrl}
+                  alt="تصویر قبض"
+                  className="w-full max-h-72 object-contain bg-slate-100 dark:bg-slate-800"
+                />
+              </div>
             )}
-            <div className="grid grid-cols-1 gap-3 text-xs">
-              <InfoRow label="شناسه قبض" value={viewingBill.billId} copyable />
-              <InfoRow label="شناسه پرداخت" value={viewingBill.paymentId} copyable />
-              <div><p className="text-[10px] text-soft mb-0.5">وضعیت</p><span className={`px-2 py-1 rounded-lg text-[10px] font-bold ${viewingBill.isPaid ? "bg-emerald-500/15 text-emerald-500" : "bg-amber-500/15 text-amber-500"}`}>{viewingBill.isPaid ? "پرداخت‌شده" : "پرداخت‌نشده"}</span></div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-soft">وضعیت</span>
+              <span
+                className={`text-[11px] px-2.5 py-0.5 rounded-full ${
+                  viewBill.isPaid
+                    ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300"
+                    : "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
+                }`}
+              >
+                {viewBill.isPaid ? "پرداخت شده" : "پرداخت نشده"}
+              </span>
             </div>
-            {viewingBill.notes && <div className="rounded-xl p-3 brand-bg-soft"><p className="text-[10px] text-soft mb-1">یادداشت</p><p className="text-xs text-strong">{viewingBill.notes}</p></div>}
+            <CopyableField
+              label="شناسه قبض"
+              value={viewBill.billId}
+              dir="ltr"
+              mono
+            />
+            <CopyableField
+              label="شناسه پرداخت"
+              value={viewBill.paymentId}
+              dir="ltr"
+              mono
+            />
+            {viewBill.notes && (
+              <div className="surface-input rounded-card-sm p-3">
+                <div className="text-[10px] text-soft mb-0.5">یادداشت</div>
+                <div className="text-sm text-strong leading-relaxed">
+                  {viewBill.notes}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </Sheet>
-
-      {/* Delete confirmation */}
-      <AnimatePresence>
-        {deleteConfirmId && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setDeleteConfirmId(null)} className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-6">
-            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} onClick={(e) => e.stopPropagation()} className="surface-card rounded-3xl p-5 max-w-xs w-full text-center">
-              <div className="w-12 h-12 rounded-2xl bg-red-500/15 mx-auto mb-3 flex items-center justify-center"><Trash2 className="w-6 h-6 text-red-500" /></div>
-              <p className="text-sm font-bold text-strong mb-1">حذف قبض؟</p><p className="text-[11px] text-soft mb-4">این عمل قابل بازگشت نیست.</p>
-              <div className="flex gap-2"><button type="button" onClick={() => setDeleteConfirmId(null)} className="flex-1 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-sm font-bold">انصراف</button><button type="button" onClick={() => { removeBill(deleteConfirmId); setDeleteConfirmId(null); }} className="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-sm font-bold hover:bg-red-600 transition-colors">حذف</button></div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (<div><label className="block text-xs font-semibold text-soft mb-1.5">{label}</label>{children}</div>);
-}
-
-function InfoRow({ label, value, copyable }: { label: string; value?: string; copyable?: boolean }) {
-  if (!value || value === "—") return null;
-  return (<div><p className="text-[10px] text-soft mb-0.5">{label}</p><div className="flex items-center gap-1"><span className="text-sm text-strong font-mono flex-1 truncate" dir="ltr">{value}</span>{copyable && <CopyChip value={value} label={label} size="sm" />}</div></div>);
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <label className="text-xs text-soft block mb-1.5">{label}</label>
+      {children}
+    </div>
+  );
 }

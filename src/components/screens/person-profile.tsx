@@ -1,330 +1,343 @@
 "use client";
 
 import { useMemo } from "react";
-import { useApp } from "@/lib/store";
-import { ProfileAvatar } from "@/components/shared/profile-avatar";
-import { CopyChip } from "@/components/shared/copyable-field";
-import { AppCard } from "@/components/shared/ui";
 import {
-  ChevronRight, CreditCard, FileText, Receipt, KeyRound,
-  Phone, Calendar, Droplet, Pencil, Plus,
+  ArrowRight,
+  CreditCard,
+  FileText,
+  Hash,
+  KeyRound,
+  Phone,
+  Receipt,
 } from "lucide-react";
-import type { Person } from "@/lib/types";
+import { useApp } from "@/lib/store";
+import { ScreenHeader } from "@/components/shared/screen-header";
+import { AppCard, SectionTitle } from "@/components/shared/ui";
+import { ProfileAvatar } from "@/components/shared/profile-avatar";
+import { CopyableField } from "@/components/shared/copyable-field";
 
-interface PersonProfileProps {
-  person: Person;
+export function PersonProfile({
+  personId,
+  onBack,
+}: {
+  personId: string;
   onBack: () => void;
-  onEdit: () => void;
-}
+}) {
+  const person = useApp((s) => s.people.find((p) => p.id === personId) || null);
+  const bankCards = useApp((s) => s.bankCards);
+  const documents = useApp((s) => s.documents);
+  const bills = useApp((s) => s.bills);
+  const credentials = useApp((s) => s.credentials);
 
-export function PersonProfile({ person, onBack, onEdit }: PersonProfileProps) {
-  // Use raw arrays and filter with useMemo to avoid infinite re-renders
-  const allBankCards = useApp((s) => s.bankCards);
-  const allDocuments = useApp((s) => s.documents);
-  const allBills = useApp((s) => s.bills);
-  const allCredentials = useApp((s) => s.credentials);
+  // CRITICAL: use useMemo to avoid infinite re-render with inline filter
+  const personCards = useMemo(
+    () => bankCards.filter((c) => c.personId === personId),
+    [bankCards, personId],
+  );
+  const personDocs = useMemo(
+    () => documents.filter((d) => d.personId === personId),
+    [documents, personId],
+  );
+  const personBills = useMemo(
+    () => bills.filter((b) => b.personId === personId),
+    [bills, personId],
+  );
+  const personCredentials = useMemo(
+    () => credentials.filter((c) => c.personId === personId),
+    [credentials, personId],
+  );
 
-  const bankCards = useMemo(
-    () => allBankCards.filter((c) => c.personId === person.id),
-    [allBankCards, person.id]
-  );
-  const documents = useMemo(
-    () => allDocuments.filter((d) => d.personId === person.id),
-    [allDocuments, person.id]
-  );
-  const bills = useMemo(
-    () => allBills.filter((b) => b.personId === person.id),
-    [allBills, person.id]
-  );
-  const credentials = useMemo(
-    () => allCredentials.filter((c) => c.personId === person.id),
-    [allCredentials, person.id]
-  );
+  if (!person) {
+    return (
+      <div className="flex flex-col">
+        <ScreenHeader title="شخص پیدا نشد" />
+        <div className="p-6">
+          <button
+            type="button"
+            onClick={onBack}
+            className="px-4 py-2 rounded-full brand-bg-soft text-brand-text text-sm pressable"
+          >
+            بازگشت
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const stats = [
+    { label: "کارت", value: personCards.length, Icon: CreditCard, color: "from-pink-400 to-rose-600" },
+    { label: "سند", value: personDocs.length, Icon: FileText, color: "from-emerald-400 to-green-600" },
+    { label: "قبض", value: personBills.length, Icon: Receipt, color: "from-amber-400 to-orange-600" },
+    { label: "رمز", value: personCredentials.length, Icon: KeyRound, color: "from-violet-400 to-purple-600" },
+  ];
 
   return (
-    <div className="flex flex-col bg-page min-h-full">
-      {/* Header with cover */}
-      <div className="header-gradient px-5 pt-5 pb-16 rounded-b-3xl relative">
-        <button
-          type="button"
-          onClick={onBack}
-          className="w-10 h-10 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center mb-3 transition-colors"
-          aria-label="بازگشت"
-        >
-          <ChevronRight className="w-5 h-5 text-white" />
-        </button>
+    <div className="flex flex-col">
+      <ScreenHeader
+        title={person.fullName}
+        subtitle={person.relation}
+        trailing={
+          <button
+            type="button"
+            onClick={onBack}
+            aria-label="بازگشت"
+            className="h-9 w-9 rounded-full bg-white/20 text-white flex items-center justify-center pressable"
+          >
+            <ArrowRight size={18} />
+          </button>
+        }
+      />
 
-        {/* Avatar + name */}
-        <div className="flex items-center gap-4">
-          <div className="relative">
-            <ProfileAvatar
-              name={person.fullName}
-              avatarDataUrl={person.avatarDataUrl}
-              size="xl"
-              ring
-            />
-            <button
-              type="button"
-              onClick={onEdit}
-              className="absolute -bottom-1 -left-1 w-8 h-8 rounded-full brand-gradient text-white flex items-center justify-center shadow-glow border-2 border-white dark:border-slate-900"
-              aria-label="ویرایش پروفایل"
-            >
-              <Pencil className="w-3.5 h-3.5" />
-            </button>
-          </div>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-xl font-bold text-white truncate">{person.fullName}</h1>
-            <p className="text-sm text-white/70">{person.relation}</p>
+      <div className="px-4 -mt-6 space-y-5">
+        {/* Profile header card */}
+        <AppCard asDiv className="!p-4 flex items-center gap-3">
+          <ProfileAvatar
+            name={person.fullName}
+            avatarDataUrl={person.avatarDataUrl}
+            size="lg"
+            ring
+          />
+          <div className="min-w-0 flex-1">
+            <div className="text-base font-bold text-strong truncate">
+              {person.fullName}
+            </div>
+            <div className="text-xs text-soft truncate">{person.relation}</div>
             {person.phone && (
-              <div className="flex items-center gap-1.5 mt-1">
-                <span className="text-[11px] text-white/60" dir="ltr">
+              <div className="flex items-center gap-2 mt-1">
+                <span
+                  dir="ltr"
+                  className="text-xs font-mono text-strong"
+                >
                   {person.phone}
                 </span>
-                <CopyChip value={person.phone} label="شماره موبایل" size="sm" />
+                <a
+                  href={`tel:${person.phone}`}
+                  className="h-6 w-6 rounded-full brand-bg-soft text-brand-text flex items-center justify-center"
+                  aria-label="تماس"
+                >
+                  <Phone size={12} />
+                </a>
+              </div>
+            )}
+          </div>
+        </AppCard>
+
+        {/* Stat cards */}
+        <div className="grid grid-cols-4 gap-2">
+          {stats.map(({ label, value, Icon, color }) => (
+            <div
+              key={label}
+              className="surface-card rounded-card p-2.5 flex flex-col items-center gap-1"
+            >
+              <div
+                className={`h-8 w-8 rounded-lg bg-gradient-to-br ${color} text-white flex items-center justify-center`}
+              >
+                <Icon size={14} />
+              </div>
+              <span className="text-base font-bold text-strong">{value}</span>
+              <span className="text-[10px] text-soft">{label}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Personal info */}
+        <div>
+          <SectionTitle icon={<Hash size={14} />} label="اطلاعات شخصی" />
+          <div className="space-y-2">
+            {person.birthDateJalali && (
+              <CopyableField
+                label="تاریخ تولد"
+                value={person.birthDateJalali}
+                dir="ltr"
+              />
+            )}
+            {person.bloodType && (
+              <CopyableField
+                label="گروه خونی"
+                value={person.bloodType}
+                dir="ltr"
+              />
+            )}
+            {person.nationalId && (
+              <CopyableField
+                label="کد ملی"
+                value={person.nationalId}
+                dir="ltr"
+                mono
+              />
+            )}
+            {person.phone && (
+              <CopyableField
+                label="شماره موبایل"
+                value={person.phone}
+                dir="ltr"
+                mono
+              />
+            )}
+            {person.notes && (
+              <div className="surface-input rounded-card-sm p-3">
+                <div className="text-[10px] text-soft mb-0.5">یادداشت</div>
+                <div className="text-sm text-strong leading-relaxed">
+                  {person.notes}
+                </div>
               </div>
             )}
           </div>
         </div>
-      </div>
 
-      {/* Stats cards */}
-      <div className="px-4 -mt-10 mb-5">
-        <div className="grid grid-cols-4 gap-2">
-          <StatCard icon={CreditCard} value={bankCards.length} label="کارت" color="from-blue-500 to-cyan-600" />
-          <StatCard icon={FileText} value={documents.length} label="سند" color="from-emerald-500 to-teal-600" />
-          <StatCard icon={Receipt} value={bills.length} label="قبض" color="from-amber-500 to-orange-600" />
-          <StatCard icon={KeyRound} value={credentials.length} label="رمز" color="from-violet-500 to-purple-600" />
-        </div>
-      </div>
-
-      {/* Personal info */}
-      <section className="px-4 mb-5">
-        <p className="text-xs font-bold text-soft mb-2.5 px-1">اطلاعات فردی</p>
-        <AppCard className="!p-4">
-          <div className="grid grid-cols-2 gap-3">
-            {person.birthDateJalali && (
-              <InfoField icon={Calendar} label="تاریخ تولد" value={person.birthDateJalali} />
-            )}
-            {person.bloodType && (
-              <InfoField icon={Droplet} label="گروه خونی" value={person.bloodType} />
-            )}
-            {person.nationalId && (
-              <InfoField icon={FileText} label="کد ملی" value={person.nationalId} dir="ltr" copyable />
-            )}
-            {person.phone && (
-              <InfoField icon={Phone} label="موبایل" value={person.phone} dir="ltr" copyable />
-            )}
-          </div>
-          {person.notes && (
-            <div className="mt-3 pt-3 border-t border-slate-200/50 dark:border-white/5">
-              <p className="text-[10px] text-soft mb-1">یادداشت</p>
-              <p className="text-xs text-strong">{person.notes}</p>
-            </div>
-          )}
-        </AppCard>
-      </section>
-
-      {/* Bank cards */}
-      <section className="px-4 mb-5">
-        <p className="text-xs font-bold text-soft mb-2.5 px-1 flex items-center gap-1.5">
-          <CreditCard className="w-3.5 h-3.5" />
-          کارت‌های بانکی
-          <span className="mr-auto text-[10px]">{bankCards.length}</span>
-        </p>
-        {bankCards.length === 0 ? (
-          <EmptyCard label="کارت بانکی" />
-        ) : (
-          <div className="space-y-2">
-            {bankCards.map((card) => (
-              <AppCard key={card.id} className="!p-3">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
-                    {card.bankName.slice(0, 2)}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-strong truncate">{card.bankName}</p>
-                    <p className="text-[10px] text-soft">{card.cardHolderName}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1.5 mb-1">
-                  <span className="text-sm text-strong font-mono tracking-wider" dir="ltr">
-                    {card.cardNumber.replace(/(.{4})/g, "$1 ").trim()}
-                  </span>
-                  <CopyChip value={card.cardNumber} label="شماره کارت" size="sm" />
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-[11px]">
-                  <div className="flex items-center gap-1">
-                    <span className="text-soft">شبا:</span>
-                    <span className="text-strong font-mono truncate" dir="ltr">{card.shiba}</span>
-                    <CopyChip value={card.shiba} label="شبا" size="sm" />
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="text-soft">CVV2:</span>
-                    <span className="text-strong font-mono" dir="ltr">{card.cvv2}</span>
-                    <CopyChip value={card.cvv2} label="CVV2" size="sm" />
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="text-soft">حساب:</span>
-                    <span className="text-strong font-mono truncate" dir="ltr">{card.accountNumber}</span>
-                    <CopyChip value={card.accountNumber} label="حساب" size="sm" />
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="text-soft">انقضا:</span>
-                    <span className="text-strong font-mono" dir="ltr">{card.expiryMonth}/{card.expiryYear}</span>
-                  </div>
-                </div>
-              </AppCard>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* Documents */}
-      <section className="px-4 mb-5">
-        <p className="text-xs font-bold text-soft mb-2.5 px-1 flex items-center gap-1.5">
-          <FileText className="w-3.5 h-3.5" />
-          مدارک
-          <span className="mr-auto text-[10px]">{documents.length}</span>
-        </p>
-        {documents.length === 0 ? (
-          <EmptyCard label="مدرک" />
-        ) : (
-          <div className="space-y-2">
-            {documents.map((doc) => (
-              <AppCard key={doc.id} className="!p-3">
-                <div className="flex items-start gap-2">
-                  {doc.imageUrls[0] ? (
-                    <img src={doc.imageUrls[0]} alt={doc.title} className="w-10 h-10 rounded-lg object-cover shrink-0" />
-                  ) : (
-                    <span className="w-10 h-10 rounded-lg bg-violet-500/10 flex items-center justify-center text-lg shrink-0">📄</span>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-strong truncate">{doc.title}</p>
-                    {doc.documentType && <p className="text-[10px] text-soft">{doc.documentType}</p>}
-                    <div className="flex items-center gap-1.5 mt-1">
-                      {doc.documentNumber && doc.documentNumber !== "—" && (
-                        <>
-                          <span className="text-[10px] text-soft">شماره:</span>
-                          <span className="text-[10px] text-strong font-mono" dir="ltr">{doc.documentNumber}</span>
-                          <CopyChip value={doc.documentNumber} label="شماره سند" size="sm" />
-                        </>
-                      )}
-                      {doc.imageUrls.length > 1 && (
-                        <span className="mr-auto text-[9px] text-soft">{doc.imageUrls.length} تصویر</span>
-                      )}
+        {/* Bank cards */}
+        {personCards.length > 0 && (
+          <div>
+            <SectionTitle
+              icon={<CreditCard size={14} />}
+              label="کارت‌های بانکی"
+            />
+            <div className="space-y-2">
+              {personCards.map((c) => (
+                <div key={c.id} className="space-y-2">
+                  <div className="rounded-card p-3 brand-gradient text-white">
+                    <div className="text-xs opacity-90">{c.bankName}</div>
+                    <div
+                      dir="ltr"
+                      className="text-sm font-mono tracking-widest mt-1"
+                    >
+                      {c.cardNumber.replace(/(.{4})/g, "$1 ").trim()}
+                    </div>
+                    <div className="text-[10px] opacity-80 mt-1">
+                      {c.cardHolderName}
                     </div>
                   </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <CopyableField label="شبا" value={c.shiba} dir="ltr" mono />
+                    <CopyableField
+                      label="شماره حساب"
+                      value={c.accountNumber}
+                      dir="ltr"
+                      mono
+                    />
+                    <CopyableField label="CVV2" value={c.cvv2} dir="ltr" mono />
+                    <CopyableField
+                      label="انقضا"
+                      value={`${c.expiryMonth}/${c.expiryYear}`}
+                      dir="ltr"
+                      mono
+                    />
+                  </div>
                 </div>
-              </AppCard>
-            ))}
+              ))}
+            </div>
           </div>
         )}
-      </section>
 
-      {/* Credentials */}
-      {credentials.length > 0 && (
-        <section className="px-4 mb-5">
-          <p className="text-xs font-bold text-soft mb-2.5 px-1 flex items-center gap-1.5">
-            <KeyRound className="w-3.5 h-3.5" />
-            رمزهای عبور
-            <span className="mr-auto text-[10px]">{credentials.length}</span>
-          </p>
-          <div className="space-y-2">
-            {credentials.map((cr) => (
-              <AppCard key={cr.id} className="!p-3">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="w-9 h-9 rounded-lg brand-bg-soft flex items-center justify-center text-base">🔐</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-strong truncate">{cr.serviceName}</p>
+        {/* Documents */}
+        {personDocs.length > 0 && (
+          <div>
+            <SectionTitle icon={<FileText size={14} />} label="اسناد" />
+            <div className="space-y-2">
+              {personDocs.map((d) => (
+                <AppCard key={d.id} asDiv className="!p-3">
+                  <div className="flex items-center gap-3">
+                    <div className="h-9 w-9 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 flex items-center justify-center">
+                      <FileText size={16} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-bold text-strong truncate">
+                        {d.title}
+                      </div>
+                      <div className="text-[10px] text-soft truncate">
+                        {d.documentType || d.category}
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] text-soft w-14">نام کاربری</span>
-                    <span className="text-[11px] text-strong font-mono truncate flex-1" dir="ltr">{cr.username}</span>
-                    <CopyChip value={cr.username} label="نام کاربری" size="sm" />
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] text-soft w-14">گذرواژه</span>
-                    <span className="text-[11px] text-strong font-mono flex-1" dir="ltr">••••••••</span>
-                    <CopyChip value={cr.password} label="گذرواژه" size="sm" />
-                  </div>
-                </div>
-              </AppCard>
-            ))}
+                  {d.documentNumber && (
+                    <div className="mt-2">
+                      <CopyableField
+                        label="شماره سند"
+                        value={d.documentNumber}
+                        dir="ltr"
+                        mono
+                      />
+                    </div>
+                  )}
+                </AppCard>
+              ))}
+            </div>
           </div>
-        </section>
-      )}
+        )}
 
-      {/* Bills */}
-      {bills.length > 0 && (
-        <section className="px-4 mb-5">
-          <p className="text-xs font-bold text-soft mb-2.5 px-1 flex items-center gap-1.5">
-            <Receipt className="w-3.5 h-3.5" />
-            قبوض
-            <span className="mr-auto text-[10px]">{bills.length}</span>
-          </p>
-          <div className="space-y-2">
-            {bills.map((bill) => (
-              <AppCard key={bill.id} className="!p-3">
-                <div className="flex items-center gap-2">
-                  <span className="w-9 h-9 rounded-lg bg-amber-500/10 flex items-center justify-center text-base">
-                    {bill.billType === "water" ? "💧" : bill.billType === "electricity" ? "⚡" : bill.billType === "gas" ? "🔥" : "📄"}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-strong truncate">{bill.provider}</p>
-                    <p className="text-[10px] text-soft">شناسه قبض: {bill.billId}</p>
+        {/* Credentials */}
+        {personCredentials.length > 0 && (
+          <div>
+            <SectionTitle icon={<KeyRound size={14} />} label="رمزها" />
+            <div className="space-y-2">
+              {personCredentials.map((c) => (
+                <AppCard key={c.id} asDiv className="!p-3">
+                  <div className="text-sm font-bold text-strong mb-2">
+                    {c.serviceName}
                   </div>
-                  <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${bill.isPaid ? "bg-emerald-500/15 text-emerald-500" : "bg-amber-500/15 text-amber-500"}`}>
-                    {bill.isPaid ? "پرداخت‌شده" : "پرداخت‌نشده"}
-                  </span>
-                </div>
-              </AppCard>
-            ))}
+                  <div className="grid grid-cols-2 gap-2">
+                    <CopyableField
+                      label="نام کاربری"
+                      value={c.username}
+                      dir="ltr"
+                      mono
+                    />
+                    <CopyableField
+                      label="رمز عبور"
+                      value={c.password}
+                      dir="ltr"
+                      mono
+                    />
+                  </div>
+                </AppCard>
+              ))}
+            </div>
           </div>
-        </section>
-      )}
-    </div>
-  );
-}
+        )}
 
-function StatCard({ icon: Icon, value, label, color }: { icon: typeof CreditCard; value: number; label: string; color: string }) {
-  return (
-    <div className="surface-card rounded-2xl p-2.5 text-center">
-      <div className={`w-7 h-7 mx-auto rounded-lg bg-gradient-to-br ${color} flex items-center justify-center text-white mb-1`}>
-        <Icon className="w-3.5 h-3.5" />
-      </div>
-      <p className="text-sm font-bold text-strong">{value}</p>
-      <p className="text-[9px] text-soft">{label}</p>
-    </div>
-  );
-}
+        {/* Bills */}
+        {personBills.length > 0 && (
+          <div>
+            <SectionTitle icon={<Receipt size={14} />} label="قبوض" />
+            <div className="space-y-2">
+              {personBills.map((b) => (
+                <AppCard key={b.id} asDiv className="!p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="text-sm font-bold text-strong flex-1 truncate">
+                      {b.provider || "قبض"}
+                    </div>
+                    <span
+                      className={`text-[10px] px-2 py-0.5 rounded-full ${
+                        b.isPaid
+                          ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300"
+                          : "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
+                      }`}
+                    >
+                      {b.isPaid ? "پرداخت شده" : "پرداخت نشده"}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <CopyableField
+                      label="شناسه قبض"
+                      value={b.billId}
+                      dir="ltr"
+                      mono
+                    />
+                    <CopyableField
+                      label="شناسه پرداخت"
+                      value={b.paymentId}
+                      dir="ltr"
+                      mono
+                    />
+                  </div>
+                </AppCard>
+              ))}
+            </div>
+          </div>
+        )}
 
-function InfoField({ icon: Icon, label, value, dir, copyable }: {
-  icon: typeof Calendar; label: string; value?: string; dir?: "rtl" | "ltr"; copyable?: boolean;
-}) {
-  if (!value) return null;
-  return (
-    <div>
-      <div className="flex items-center gap-1 text-[10px] text-soft mb-0.5">
-        <Icon className="w-3 h-3" />
-        {label}
-      </div>
-      <div className="flex items-center gap-1">
-        <span className={`text-xs text-strong font-medium flex-1 truncate`} dir={dir}>
-          {value}
-        </span>
-        {copyable && <CopyChip value={value} label={label} size="sm" />}
+        <div className="h-2" />
       </div>
     </div>
-  );
-}
-
-function EmptyCard({ label }: { label: string }) {
-  return (
-    <AppCard className="!p-5 text-center">
-      <Plus className="w-6 h-6 mx-auto mb-1 brand-text" />
-      <p className="text-[11px] text-soft">هنوز {label}‌ای ثبت نشده</p>
-    </AppCard>
   );
 }
