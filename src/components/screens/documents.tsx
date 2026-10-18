@@ -12,6 +12,7 @@ import {
   Landmark,
   Pencil,
   Plus,
+  Share2,
   Shield,
   Trash2,
   type LucideIcon,
@@ -710,12 +711,39 @@ export function DocumentsScreen() {
           <div className="space-y-4 py-2">
             {viewDoc.imageUrls.length > 0 && (
               <div className="space-y-2">
-                <div className="rounded-card overflow-hidden border border-violet-200/40">
+                <div className="relative rounded-card overflow-hidden border border-violet-200/40">
                   <img
                     src={viewDoc.imageUrls[imageIdx]}
                     alt={`صفحه ${imageIdx + 1}`}
                     className="w-full max-h-72 object-contain bg-slate-100 dark:bg-slate-800"
                   />
+                  {/* Share button */}
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const dataUrl = viewDoc.imageUrls[imageIdx];
+                        const res = await fetch(dataUrl);
+                        const blob = await res.blob();
+                        const file = new File([blob], `${viewDoc.title}-page${imageIdx + 1}.jpg`, { type: "image/jpeg" });
+                        if (navigator.share && navigator.canShare({ files: [file] })) {
+                          await navigator.share({ files: [file], title: viewDoc.title });
+                        } else if (navigator.share) {
+                          await navigator.share({ title: viewDoc.title, text: viewDoc.title });
+                        } else {
+                          // Fallback: download
+                          const a = document.createElement("a");
+                          a.href = dataUrl;
+                          a.download = `${viewDoc.title}-page${imageIdx + 1}.jpg`;
+                          a.click();
+                        }
+                      } catch {}
+                    }}
+                    className="absolute top-2 left-2 w-8 h-8 rounded-full bg-black/50 backdrop-blur flex items-center justify-center text-white hover:bg-black/70 transition-colors"
+                    aria-label="اشتراک‌گذاری"
+                  >
+                    <Share2 className="w-4 h-4" />
+                  </button>
                 </div>
                 {viewDoc.imageUrls.length > 1 && (
                   <div className="flex gap-2 overflow-x-auto no-scrollbar">

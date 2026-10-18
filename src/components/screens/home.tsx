@@ -1,307 +1,228 @@
 "use client";
 
-import {
-  AlertTriangle,
-  CreditCard,
-  FileText,
-  Phone,
-  Plus,
-  Receipt,
-  Users,
-  type LucideIcon,
-} from "lucide-react";
 import { useApp } from "@/lib/store";
 import { ScreenHeader } from "@/components/shared/screen-header";
-import { AppCard, SectionTitle } from "@/components/shared/ui";
+import { AppCard } from "@/components/shared/ui";
 import { ProfileAvatar } from "@/components/shared/profile-avatar";
+import {
+  CreditCard, FileText, Receipt, Users, ShieldCheck,
+  ChevronLeft, Plus, Phone,
+} from "lucide-react";
+import { motion } from "framer-motion";
 import type { ScreenId } from "@/lib/types";
 
-const EMERGENCY_META: Record<string, { label: string; color: string }> = {
-  "115": { label: "اورژانس", color: "from-red-400 to-rose-600" },
-  "110": { label: "پلیس", color: "from-blue-400 to-indigo-600" },
-  "125": { label: "آتش‌نشانی", color: "from-orange-400 to-amber-600" },
-  "191": { label: "گاز", color: "from-yellow-400 to-amber-500" },
-};
+interface HomeScreenProps {
+  onNavigate: (id: ScreenId) => void;
+}
 
-export function HomeScreen({
-  onNavigate,
-}: {
-  onNavigate: (s: ScreenId) => void;
-}) {
+export function HomeScreen({ onNavigate }: HomeScreenProps) {
   const people = useApp((s) => s.people);
   const bankCards = useApp((s) => s.bankCards);
   const bills = useApp((s) => s.bills);
   const documents = useApp((s) => s.documents);
-  const contacts = useApp((s) => s.contacts);
+  const credentials = useApp((s) => s.credentials);
+  const appVersion = useApp((s) => s.appVersion);
 
   const unpaidBills = bills.filter((b) => !b.isPaid);
+  const totalItems = people.length + bankCards.length + documents.length + bills.length + credentials.length;
+  const completionPercent = totalItems > 0 ? Math.min(100, Math.round((totalItems / 10) * 100)) : 0;
 
-  const totalItems =
-    people.length + bankCards.length + bills.length + documents.length;
-  const completion = Math.min(
-    100,
-    totalItems === 0
-      ? 0
-      : Math.round(
-          (Math.min(totalItems, 20) / 20) * 100,
-        ),
-  );
-
-  const stats: {
-    label: string;
-    value: number;
-    Icon: LucideIcon;
-    from: string;
-    to: string;
-    screen: ScreenId;
-  }[] = [
-    {
-      label: "افراد",
-      value: people.length,
-      Icon: Users,
-      from: "var(--stat-people-from)",
-      to: "var(--stat-people-to)",
-      screen: "people",
-    },
-    {
-      label: "کارت‌ها",
-      value: bankCards.length,
-      Icon: CreditCard,
-      from: "var(--stat-cards-from)",
-      to: "var(--stat-cards-to)",
-      screen: "cards",
-    },
-    {
-      label: "اسناد",
-      value: documents.length,
-      Icon: FileText,
-      from: "var(--stat-docs-from)",
-      to: "var(--stat-docs-to)",
-      screen: "documents",
-    },
-    {
-      label: "قبوض",
-      value: bills.length,
-      Icon: Receipt,
-      from: "var(--stat-bills-from)",
-      to: "var(--stat-bills-to)",
-      screen: "bills",
-    },
+  const stats = [
+    { label: "افراد", value: people.length, icon: Users, color: "from-violet-500 to-purple-600", target: "people" as ScreenId },
+    { label: "کارت‌ها", value: bankCards.length, icon: CreditCard, color: "from-blue-500 to-cyan-600", target: "cards" as ScreenId },
+    { label: "مدارک", value: documents.length, icon: FileText, color: "from-emerald-500 to-teal-600", target: "documents" as ScreenId },
+    { label: "قبوض", value: bills.length, icon: Receipt, color: "from-amber-500 to-orange-600", target: "bills" as ScreenId },
   ];
 
-  const quickActions: { label: string; Icon: LucideIcon; screen: ScreenId }[] = [
-    { label: "افزودن شخص", Icon: Users, screen: "people" },
-    { label: "افزودن سند", Icon: FileText, screen: "documents" },
-    { label: "افزودن کارت", Icon: CreditCard, screen: "cards" },
-    { label: "افزودن رمز", Icon: Plus, screen: "passwords" },
+  const quickActions = [
+    { icon: Users, label: "اعضای خانواده", desc: "مدیریت افراد", color: "from-violet-500 to-purple-600", target: "people" as ScreenId },
+    { icon: FileText, label: "مدارک من", desc: "اسناد و مدارک", color: "from-emerald-500 to-teal-600", target: "documents" as ScreenId },
+    { icon: CreditCard, label: "کارت‌های بانکی", desc: "حساب و کارت", color: "from-blue-500 to-cyan-600", target: "cards" as ScreenId },
+    { icon: Receipt, label: "قبوض", desc: "قبوض پرداخت‌نشده", color: "from-rose-500 to-pink-600", target: "bills" as ScreenId },
   ];
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col bg-page min-h-full">
       <ScreenHeader
-        title="روز مبادا"
-        subtitle="خلاصهٔ وضعیت شما"
-        status={{
-          label:
-            completion === 0
-              ? "شروع کنید"
-              : completion < 50
-                ? "در حال تکمیل"
-                : completion < 100
-                  ? "نزدیک تکمیل"
-                  : "تکمیل شد",
-          tone: completion >= 100 ? "success" : "info",
-        }}
+        title="داشبورد"
+        subtitle={people.length > 0 ? `${people.length} نفر ثبت شده‌اند` : "خوش آمدید"}
+        icon={<ShieldCheck className="w-5 h-5 text-white" />}
+        statusPill={{ label: `v${appVersion}`, tone: "info" }}
       />
 
-      <div className="px-4 -mt-4 space-y-5">
-        {/* Completion progress */}
-        <AppCard asDiv className="!p-4">
+      {/* Progress bar */}
+      <div className="px-4 pt-4 pb-2">
+        <div className="surface-card rounded-2xl p-4">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-soft">میزان تکمیل مخزن</span>
-            <span className="text-sm font-bold text-brand-text">
-              {completion}%
-            </span>
+            <div>
+              <p className="text-sm font-bold text-strong">پروفایل شما</p>
+              <p className="text-[11px] text-soft">{completionPercent}% تکمیل شده</p>
+            </div>
+            <span className="text-2xl font-bold brand-text">{completionPercent}%</span>
           </div>
-          <div className="h-2 rounded-full bg-violet-100 dark:bg-slate-700 overflow-hidden">
-            <div
-              className="h-full brand-gradient transition-all duration-500"
-              style={{ width: `${completion}%` }}
+          <div className="h-2.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${completionPercent}%` }}
+              transition={{ type: "spring", stiffness: 200, damping: 30 }}
+              className="h-full rounded-full brand-gradient"
             />
           </div>
-          <p className="text-[10px] text-faint mt-2">
-            با افزودن اطلاعات افراد، اسناد و کارت‌ها، مخزن شما کامل‌تر می‌شود.
-          </p>
-        </AppCard>
+        </div>
+      </div>
 
-        {/* Unpaid bills alert */}
-        {unpaidBills.length > 0 && (
-          <div className="surface-card rounded-card p-3 flex items-center gap-3 border border-amber-200/60 dark:border-amber-700/30">
-            <div className="h-9 w-9 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center text-amber-600">
-              <AlertTriangle size={18} />
-            </div>
+      {/* Stats grid */}
+      <div className="px-4 pb-2">
+        <div className="grid grid-cols-4 gap-2">
+          {stats.map((stat, i) => {
+            const Icon = stat.icon;
+            return (
+              <motion.button
+                key={stat.label}
+                type="button"
+                onClick={() => onNavigate(stat.target)}
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.05 }}
+                className="surface-card rounded-2xl p-2.5 text-center hover:shadow-glow transition-all"
+              >
+                <div className={`w-8 h-8 mx-auto rounded-xl bg-gradient-to-br ${stat.color} flex items-center justify-center text-white mb-1.5`}>
+                  <Icon className="w-4 h-4" />
+                </div>
+                <p className="text-base font-bold text-strong">{stat.value}</p>
+                <p className="text-[9px] text-soft">{stat.label}</p>
+              </motion.button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Unpaid bills alert */}
+      {unpaidBills.length > 0 && (
+        <div className="px-4 pb-2">
+          <div className="rounded-2xl p-3 bg-amber-500/10 border border-amber-500/20 flex items-center gap-2">
+            <span className="w-7 h-7 rounded-lg bg-amber-500/15 flex items-center justify-center shrink-0">
+              <Receipt className="w-3.5 h-3.5 text-amber-500" />
+            </span>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-strong">
-                {unpaidBills.length} قبض پرداخت‌نشده
-              </p>
-              <p className="text-[10px] text-soft">برای پیگیری به قبوض مراجعه کنید</p>
+              <p className="text-xs font-bold text-amber-600 dark:text-amber-300">قبوض پرداخت‌نشده</p>
+              <p className="text-[10px] text-soft">{unpaidBills.length} مورد در انتظار پرداخت</p>
             </div>
-            <button
-              type="button"
-              onClick={() => onNavigate("bills")}
-              className="text-[10px] font-bold text-brand-text pressable px-2.5 py-1 rounded-full brand-bg-soft"
-            >
-              مشاهده
+            <button type="button" onClick={() => onNavigate("bills")} className="text-[11px] font-bold text-amber-600 dark:text-amber-300 flex items-center gap-0.5">
+              مشاهده <ChevronLeft className="w-3 h-3" />
             </button>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Stats grid */}
+      {/* Quick actions */}
+      <div className="px-4 pb-2">
+        <p className="text-xs font-bold text-soft mb-2 px-1">دسترسی سریع</p>
         <div className="grid grid-cols-2 gap-3">
-          {stats.map(({ label, value, Icon, from, to, screen }) => (
-            <AppCard
-              key={label}
-              onClick={() => onNavigate(screen)}
-              className="!p-4 flex items-center gap-3"
-            >
-              <div
-                className="h-12 w-12 rounded-xl flex items-center justify-center text-white shrink-0"
-                style={{
-                  backgroundImage: `linear-gradient(135deg, ${from} 0%, ${to} 100%)`,
-                }}
-              >
-                <Icon size={22} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="text-2xl font-bold text-strong leading-none">
-                  {value}
-                </div>
-                <div className="text-xs text-soft mt-1">{label}</div>
-              </div>
-            </AppCard>
-          ))}
-        </div>
-
-        {/* Quick actions */}
-        <div>
-          <SectionTitle label="دسترسی سریع" />
-          <div className="grid grid-cols-2 gap-3">
-            {quickActions.map(({ label, Icon, screen }) => (
-              <button
-                key={label}
+          {quickActions.map((action, i) => {
+            const Icon = action.icon;
+            return (
+              <motion.button
+                key={action.label}
                 type="button"
-                onClick={() => onNavigate(screen)}
-                className="surface-card rounded-card p-4 flex flex-col items-start gap-3 pressable text-right"
+                onClick={() => onNavigate(action.target)}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.2 + i * 0.05 }}
+                className={`rounded-2xl p-4 text-right bg-gradient-to-br ${action.color} text-white shadow-card hover:shadow-glow transition-all`}
               >
-                <div className="h-10 w-10 rounded-xl brand-gradient flex items-center justify-center text-white">
-                  <Icon size={18} />
-                </div>
-                <span className="text-sm font-bold text-strong">{label}</span>
-              </button>
-            ))}
-          </div>
+                <Icon className="w-6 h-6 mb-2 text-white" />
+                <p className="text-sm font-bold text-white">{action.label}</p>
+                <p className="text-[10px] text-white/80">{action.desc}</p>
+              </motion.button>
+            );
+          })}
         </div>
+      </div>
 
-        {/* People preview */}
-        {people.length > 0 && (
-          <div>
-            <SectionTitle
-              icon={<Users size={14} />}
-              label="افراد"
-              action={
-                <button
-                  type="button"
-                  onClick={() => onNavigate("people")}
-                  className="text-[10px] text-brand-text pressable"
-                >
-                  همه
-                </button>
-              }
-            />
-            <div className="space-y-2">
-              {people.slice(0, 4).map((p) => (
-                <AppCard
-                  key={p.id}
-                  onClick={() => {
-                    useApp.getState().setActivePerson(p.id);
-                    onNavigate("people");
-                  }}
-                  className="!p-3 flex items-center gap-3"
-                >
+      {/* People — horizontal scroll with big avatars */}
+      {people.length > 0 && (
+        <div className="pb-2">
+          <div className="flex items-center justify-between mb-2 px-4">
+            <p className="text-xs font-bold text-soft flex items-center gap-1.5">
+              <Users className="w-3.5 h-3.5" />
+              اعضای خانواده
+            </p>
+            <button type="button" onClick={() => onNavigate("people")} className="text-[11px] font-semibold brand-text flex items-center gap-0.5">
+              همه <ChevronLeft className="w-3 h-3" />
+            </button>
+          </div>
+          {/* Horizontal scroll */}
+          <div className="flex gap-3 overflow-x-auto no-scrollbar px-4 pb-1">
+            {people.map((person, i) => (
+              <motion.button
+                key={person.id}
+                type="button"
+                onClick={() => { useApp.getState().setActivePerson(person.id); onNavigate("people"); }}
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: i * 0.05 }}
+                className="shrink-0 w-24 flex flex-col items-center"
+              >
+                {/* Big avatar */}
+                <div className="relative mb-1.5">
                   <ProfileAvatar
-                    name={p.fullName}
-                    avatarDataUrl={p.avatarDataUrl}
-                    size="sm"
+                    name={person.fullName}
+                    avatarDataUrl={person.avatarDataUrl}
+                    size="xl"
+                    ring
                   />
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-bold text-strong truncate">
-                      {p.fullName}
-                    </div>
-                    <div className="text-[10px] text-soft truncate">
-                      {p.relation}
-                    </div>
-                  </div>
-                  {p.phone && (
-                    <a
-                      href={`tel:${p.phone}`}
-                      onClick={(e) => e.stopPropagation()}
-                      className="h-8 w-8 rounded-full brand-bg-soft text-brand-text flex items-center justify-center pressable"
-                      aria-label="تماس"
-                    >
-                      <Phone size={14} />
-                    </a>
-                  )}
-                </AppCard>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Emergency contacts */}
-        <div>
-          <SectionTitle
-            icon={<Phone size={14} />}
-            label="اطلاعات تماس اضطراری"
-          />
-          <div className="grid grid-cols-2 gap-3">
-            {contacts
-              .slice()
-              .sort((a, b) => a.priorityOrder - b.priorityOrder)
-              .slice(0, 4)
-              .map((c) => {
-                const meta = EMERGENCY_META[c.phonePrimary] || {
-                  label: c.name,
-                  color: "from-violet-400 to-purple-600",
-                };
-                return (
+                </div>
+                {/* Name */}
+                <p className="text-xs font-bold text-strong text-center truncate w-full">{person.fullName.split(" ")[0]}</p>
+                {/* Phone icon */}
+                {person.phone ? (
                   <a
-                    key={c.id}
-                    href={`tel:${c.phonePrimary}`}
-                    className="surface-card rounded-card p-3 flex items-center gap-3 pressable"
+                    href={`tel:${person.phone}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="mt-1 w-7 h-7 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500 hover:bg-emerald-500/20 transition-colors"
+                    aria-label="تماس"
                   >
-                    <div
-                      className={`h-10 w-10 rounded-xl bg-gradient-to-br ${meta.color} text-white flex items-center justify-center`}
-                    >
-                      <Phone size={16} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-xs font-bold text-strong truncate">
-                        {c.name}
-                      </div>
-                      <div
-                        dir="ltr"
-                        className="text-[10px] text-soft font-mono truncate"
-                      >
-                        {c.phonePrimary}
-                      </div>
-                    </div>
+                    <Phone className="w-3.5 h-3.5" />
                   </a>
-                );
-              })}
+                ) : (
+                  <div className="mt-1 w-7 h-7 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center">
+                    <Phone className="w-3.5 h-3.5 text-slate-400" />
+                  </div>
+                )}
+              </motion.button>
+            ))}
+            {/* Add person button */}
+            <button
+              type="button"
+              onClick={() => onNavigate("people")}
+              className="shrink-0 w-24 flex flex-col items-center justify-center"
+            >
+              <div className="w-16 h-16 rounded-full border-2 border-dashed border-violet-400/50 flex items-center justify-center mb-1.5">
+                <Plus className="w-6 h-6 brand-text" />
+              </div>
+              <p className="text-[10px] text-soft text-center">افزودن فرد</p>
+            </button>
           </div>
         </div>
+      )}
 
-        <div className="h-2" />
+      {/* Empty state for people */}
+      {people.length === 0 && (
+        <div className="px-4 pb-2">
+          <AppCard className="!p-5 text-center" onClick={() => onNavigate("people")}>
+            <Plus className="w-8 h-8 mx-auto mb-2 brand-text" />
+            <p className="text-sm font-bold text-strong">اولین فرد را اضافه کنید</p>
+            <p className="text-[11px] text-soft mt-1">برای شروع، روی این کارت بزنید</p>
+          </AppCard>
+        </div>
+      )}
+
+      <div className="px-4 pb-4">
+        <div className="rounded-xl px-3 py-2.5 text-[11px] text-soft flex items-start gap-2 brand-bg-soft border border-slate-200/50 dark:border-white/5">
+          <ShieldCheck className="w-4 h-4 brand-text mt-0.5 shrink-0" />
+          <span>تمام اطلاعات روی همین دستگاه ذخیره می‌شود. برای انتقال، از بخش «تنظیمات» بکاپ بگیرید.</span>
+        </div>
       </div>
     </div>
   );

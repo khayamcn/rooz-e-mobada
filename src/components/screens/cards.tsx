@@ -11,39 +11,40 @@ import { CopyableField, CopyChip } from "@/components/shared/copyable-field";
 import type { BankCard } from "@/lib/types";
 
 const BANKS = [
-  "بانک ملت",
-  "بانک ملی",
-  "بانک صادرات",
-  "بانک تجارت",
-  "بانک سپه",
-  "بانک کشاورزی",
-  "بانک مسکن",
-  "بانک توسعه تعاون",
-  "بانک صنعت و معدن",
-  "بانک توسعه صادرات",
-  "بانک پاسارگاد",
-  "بانک پارسیان",
-  "بانک کارآفرین",
-  "بانک سامان",
-  "بانک اقتصاد نوین",
-  "بانک سینا",
-  "بانک سرمایه",
-  "بانک تات",
-  "بانک شهر",
-  "بانک دی",
-  "بانک پست بانک",
-  "بانک رفاه",
-  "بانک انصار",
-  "بانک مهر اقتصاد",
-  "بانک گردشگری",
-  "بانک خاورمیانه",
-  "بانک قرض‌الحسنه مهر",
-  "بانک سرمایه",
-  "بانک آینده",
-  "بانک حکمت",
-  "بانک ایران زمین",
+  "بانک ملت", "بانک ملی", "بانک صادرات", "بانک تجارت", "بانک سپه",
+  "بانک کشاورزی", "بانک مسکن", "بانک توسعه تعاون", "بانک صنعت و معدن",
+  "بانک توسعه صادرات", "بانک پاسارگاد", "بانک پارسیان", "بانک کارآفرین",
+  "بانک سامان", "بانک اقتصاد نوین", "بانک سینا", "بانک سرمایه",
+  "بانک تات", "بانک شهر", "بانک دی", "بانک پست بانک", "بانک رفاه",
+  "بانک انصار", "بانک مهر اقتصاد", "بانک گردشگری", "بانک خاورمیانه",
+  "بانک قرض‌الحسنه مهر", "بانک آینده", "بانک حکمت", "بانک ایران زمین",
   "بانک شاپرک",
 ];
+
+// Bank-specific colors for card visual
+const BANK_COLORS: Record<string, string> = {
+  "بانک ملت": "from-blue-600 to-blue-800",
+  "بانک ملی": "from-yellow-500 to-amber-700",
+  "بانک صادرات": "from-blue-500 to-indigo-700",
+  "بانک تجارت": "from-teal-600 to-cyan-800",
+  "بانک سپه": "from-orange-500 to-red-700",
+  "بانک کشاورزی": "from-green-600 to-emerald-800",
+  "بانک مسکن": "from-amber-600 to-yellow-800",
+  "بانک پاسارگاد": "from-violet-500 to-purple-700",
+  "بانک پارسیان": "from-sky-500 to-blue-700",
+  "بانک سامان": "from-emerald-500 to-teal-700",
+  "بانک سینا": "from-rose-500 to-pink-700",
+  "بانک شهر": "from-fuchsia-500 to-purple-700",
+  "بانک دی": "from-cyan-500 to-blue-700",
+  "بانک رفاه": "from-indigo-500 to-blue-700",
+  "بانک انصار": "from-slate-600 to-gray-800",
+  "بانک کارآفرین": "from-green-500 to-emerald-700",
+  "بانک اقتصاد نوین": "from-blue-400 to-indigo-600",
+};
+
+function getBankColor(bankName: string): string {
+  return BANK_COLORS[bankName] || "from-violet-500 to-purple-700";
+}
 
 function normalizeCardNumber(input: string): string {
   let v = (input || "").replace(/[^0-9]/g, "");
@@ -207,7 +208,7 @@ export function CardsScreen() {
         {bankCards.map((c) => (
           <AppCard key={c.id} asDiv className="!p-4">
             {/* Card visual */}
-            <div className="relative rounded-card overflow-hidden p-4 brand-gradient text-white">
+            <div className={`relative rounded-card overflow-hidden p-4 bg-gradient-to-br ${getBankColor(c.bankName)} text-white`}>
               <div
                 aria-hidden
                 className="absolute -top-8 -left-8 h-32 w-32 rounded-full bg-white/15 blur-2xl"
