@@ -140,7 +140,7 @@ export function SettingsScreen() {
             </div>
 
             <div className="space-y-2">
-              <div className="text-xs text-soft">رنگ主题 برنامه</div>
+              <div className="text-xs text-soft">رنگ‌بندی برنامه</div>
               <div className="grid grid-cols-4 gap-2">
                 {COLOR_THEMES.map((c) => {
                   const isActive = colorTheme === c.id;
