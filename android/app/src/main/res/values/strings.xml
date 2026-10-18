@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">روز مبادا</string>
+    <string name="title_activity_main">روز مبادا</string>
+    <string name="package_name">com.roozemobada.app</string>
+    <string name="custom_url_scheme">com.roozemobada.app</string>
+</resources>
