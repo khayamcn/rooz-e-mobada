@@ -163,10 +163,23 @@ export function BillsScreen() {
       />
 
       <div className="flex flex-1 min-h-0">
+        {/* Sidebar — icon only */}
         <aside
           dir="rtl"
-          className="w-24 shrink-0 border-l border-violet-100/40 dark:border-white/5 overflow-y-auto no-scrollbar py-2"
+          className="w-14 shrink-0 border-l border-violet-100/40 dark:border-white/5 overflow-y-auto no-scrollbar py-2 flex flex-col items-center gap-1"
         >
+          {/* All button */}
+          <button
+            type="button"
+            onClick={() => setActiveType("all")}
+            className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
+              activeType === "all" ? "brand-bg-soft brand-text" : "text-soft hover:bg-violet-50/50 dark:hover:bg-white/5"
+            }`}
+            aria-label="همه"
+          >
+            <Receipt size={18} />
+          </button>
+          <div className="w-8 h-px bg-violet-100/40 dark:bg-white/5 my-0.5" />
           {TYPES.map((t) => {
             const isActive = activeType === t.id;
             return (
@@ -174,25 +187,24 @@ export function BillsScreen() {
                 key={t.id}
                 type="button"
                 onClick={() => setActiveType(t.id)}
-                className={`w-full flex flex-col items-center gap-1 py-2.5 px-1 transition-colors ${
+                className={`relative w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
                   isActive ? "brand-bg-soft" : "hover:bg-violet-50/50 dark:hover:bg-white/5"
                 }`}
+                aria-label={t.label}
               >
                 <div
-                  className={`h-8 w-8 rounded-lg bg-gradient-to-br ${t.color} text-white flex items-center justify-center`}
+                  className={`h-7 w-7 rounded-lg bg-gradient-to-br ${t.color} text-white flex items-center justify-center`}
                 >
-                  <t.Icon size={15} />
+                  <t.Icon size={14} />
                 </div>
-                <span
-                  className={`text-[10px] font-medium ${
-                    isActive ? "text-brand-text" : "text-soft"
-                  }`}
-                >
-                  {t.label}
-                </span>
-                <span className="text-[9px] text-faint">
-                  {counts[t.id] || 0}
-                </span>
+                {isActive && (
+                  <span className="absolute right-0 top-1/2 -translate-y-1/2 w-1 h-6 rounded-full brand-gradient" />
+                )}
+                {counts[t.id] > 0 && (
+                  <span className="absolute -top-0.5 -left-0.5 min-w-[14px] h-3.5 px-0.5 rounded-full bg-violet-500 text-white text-[8px] font-bold flex items-center justify-center">
+                    {counts[t.id]}
+                  </span>
+                )}
               </button>
             );
           })}
