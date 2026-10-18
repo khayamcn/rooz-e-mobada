@@ -57,28 +57,33 @@ const SEED_CONTACTS: EmergencyContact[] = [
 
 function xorCipher(text: string, passphrase: string): string {
   if (!passphrase) return text;
-  const key = passphrase;
-  let out = "";
-  for (let i = 0; i < text.length; i++) {
-    out += String.fromCharCode(text.charCodeAt(i) ^ key.charCodeAt(i % key.length));
+  const textBytes = new TextEncoder().encode(text);
+  const keyBytes = new TextEncoder().encode(passphrase);
+  const out = new Uint8Array(textBytes.length);
+  for (let i = 0; i < textBytes.length; i++) {
+    out[i] = textBytes[i] ^ keyBytes[i % keyBytes.length];
   }
-  return out;
+  // Convert bytes to base64-safe string
+  let binary = "";
+  for (let i = 0; i < out.length; i++) {
+    binary += String.fromCharCode(out[i]);
+  }
+  return btoa(binary);
 }
 
-function toBase64(input: string): string {
-  if (typeof btoa === "function") return btoa(input);
-  // Fallback for environments without btoa
-  let out = "";
-  for (let i = 0; i < input.length; i++) {
-    const c = input.charCodeAt(i);
-    out += String.fromCharCode(c);
+function xorDecipher(b64: string, passphrase: string): string {
+  if (!passphrase) return b64;
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
   }
-  return out;
-}
-
-function fromBase64(input: string): string {
-  if (typeof atob === "function") return atob(input);
-  return input;
+  const keyBytes = new TextEncoder().encode(passphrase);
+  const out = new Uint8Array(bytes.length);
+  for (let i = 0; i < bytes.length; i++) {
+    out[i] = bytes[i] ^ keyBytes[i % keyBytes.length];
+  }
+  return new TextDecoder().decode(out);
 }
 
 interface AppState {
@@ -95,6 +100,7 @@ interface AppState {
   credentials: Credential[];
   contacts: EmergencyContact[];
   lastBackupAt: string | null;
+  backupHistory: { name: string; date: string; size: string }[];
 
   activate: (token: string) => boolean;
   deactivate: () => void;
@@ -151,6 +157,7 @@ export const useApp = create<AppState>()(
       credentials: [],
       contacts: SEED_CONTACTS,
       lastBackupAt: null,
+      backupHistory: [],
 
       activate: (token: string) => {
         if (!validateToken(token)) return false;
@@ -274,18 +281,25 @@ export const useApp = create<AppState>()(
           credentials: state.credentials,
           contacts: state.contacts,
         });
-        const ciphered = xorCipher(payload, passphrase);
-        const b64 = toBase64(ciphered);
-        set({ lastBackupAt: new Date().toISOString() });
-        return "ROOZ-V4:" + b64;
+        const encrypted = xorCipher(payload, passphrase);
+        const now = new Date();
+        const dateStr = now.toLocaleString("fa-IR");
+        const fileName = `rooz-backup-${now.toISOString().slice(0, 10)}.enc`;
+        const sizeKB = Math.round(encrypted.length / 1024);
+        const sizeStr = sizeKB > 0 ? `${sizeKB} KB` : `${encrypted.length} B`;
+        set((s) => ({
+          lastBackupAt: now.toISOString(),
+          backupHistory: [
+            { name: fileName, date: dateStr, size: sizeStr },
+            ...s.backupHistory,
+          ].slice(0, 20),
+        }));
+        return encrypted;
       },
 
       importBackup: (encrypted: string, passphrase: string) => {
         try {
-          if (!encrypted.startsWith("ROOZ-V4:")) return false;
-          const b64 = encrypted.slice("ROOZ-V4:".length);
-          const ciphered = fromBase64(b64.trim());
-          const json = xorCipher(ciphered, passphrase);
+          const json = xorDecipher(encrypted.trim(), passphrase);
           const data = JSON.parse(json);
           if (!data || typeof data !== "object") return false;
           set({
@@ -319,6 +333,7 @@ export const useApp = create<AppState>()(
         documents: s.documents,
         credentials: s.credentials,
         lastBackupAt: s.lastBackupAt,
+        backupHistory: s.backupHistory,
       }),
     },
   ),

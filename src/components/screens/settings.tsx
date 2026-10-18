@@ -35,6 +35,7 @@ export function SettingsScreen() {
   const importBackup = useApp((s) => s.importBackup);
   const deactivate = useApp((s) => s.deactivate);
   const lastBackupAt = useApp((s) => s.lastBackupAt);
+  const backupHistory = useApp((s) => s.backupHistory);
 
   const [passphrase, setPassphrase] = useState("");
   const [restorePass, setRestorePass] = useState("");
@@ -210,6 +211,26 @@ export function SettingsScreen() {
             )}
           </AppCard>
         </div>
+
+        {/* Backup history */}
+        {backupHistory.length > 0 && (
+          <div>
+            <SectionTitle icon={<Database size={14} />} label="پشتیبان‌گیری‌های انجام‌شده" />
+            <AppCard asDiv className="!p-0 overflow-hidden">
+              <div className="divide-y divide-[var(--card-border)]">
+                {backupHistory.map((b, i) => (
+                  <div key={i} className="flex items-center justify-between px-4 py-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-bold text-strong truncate">{b.name}</p>
+                      <p className="text-[10px] text-soft">{b.date}</p>
+                    </div>
+                    <span className="text-[10px] text-soft shrink-0 ml-2">{b.size}</span>
+                  </div>
+                ))}
+              </div>
+            </AppCard>
+          </div>
+        )}
 
         {/* Restore */}
         <div>
